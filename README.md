@@ -637,7 +637,9 @@ class MyProvider(OpenAICompatibleProvider):
 
 ## Contributing
 
-This project is currently private and not open for public contributions or forks. If you have suggestions or would like to discuss the project, please contact the owner.
+This project is a private derivative work based on [Alishahryar1/free-claude-code](https://github.com/Alishahryar1/free-claude-code). 
+
+It is currently private and not open for public contributions or forks. If you have suggestions or would like to discuss the project, please contact the owner.
 
 ```bash
 # Development checks
