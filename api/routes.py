@@ -14,6 +14,8 @@ from providers.exceptions import InvalidRequestError, ProviderError
 from .dependencies import get_provider_for_type, get_settings, require_api_key
 from .models.anthropic import MessagesRequest, TokenCountRequest
 from .models.responses import ModelResponse, ModelsListResponse, TokenCountResponse
+from .models.agents import AgentListResponse, AgentVersionsResponse, CreateAgentRequest
+from .agents_db import agents_db
 from .optimization_handlers import try_optimizations
 from .request_utils import get_token_count
 
@@ -83,12 +85,37 @@ async def create_message(
         optimized = try_optimizations(request_data, settings)
         if optimized is not None:
             return optimized
-        logger.debug("No optimization matched, routing to provider")
+        # Apply model/agent override if present in request state
+        override = getattr(raw_request.state, "model_override", None)
+        if override:
+            if override.startswith("agent_"):
+                agent = agents_db.get_agent(override)
+                if agent:
+                    logger.info("AGENT_OVERRIDE: id={} name={}", override, agent["name"])
+                    request_data.resolved_provider_model = agent["model"]
+                    # Prepend agent system prompt if present
+                    if agent.get("system"):
+                        if isinstance(request_data.system, str):
+                            request_data.system = f"{agent['system']}\n\n{request_data.system}"
+                        elif isinstance(request_data.system, list):
+                            from .models.anthropic import SystemContent
+                            request_data.system.insert(0, SystemContent(type="text", text=agent["system"]))
+                        else:
+                            request_data.system = agent["system"]
+                else:
+                    logger.warning("AGENT_NOT_FOUND: id={}", override)
+            else:
+                logger.info("MODEL_OVERRIDE: model={}", override)
+                request_data.resolved_provider_model = override
 
         # Resolve provider from the model-aware mapping
-        provider_type = Settings.parse_provider_type(
-            request_data.resolved_provider_model or settings.model
-        )
+        resolved_model = request_data.resolved_provider_model or settings.model
+        if "/" not in resolved_model:
+            logger.warning("MODEL_WITHOUT_PROVIDER: model={} - defaulting to nvidia_nim", resolved_model)
+            resolved_model = f"nvidia_nim/{resolved_model}"
+            request_data.resolved_provider_model = resolved_model
+
+        provider_type = Settings.parse_provider_type(resolved_model)
         provider = get_provider_for_type(provider_type)
 
         request_id = f"req_{uuid.uuid4().hex[:12]}"
@@ -177,6 +204,12 @@ async def root(
         "status": "ok",
         "provider": settings.provider_type,
         "model": settings.model,
+        "mapping": {
+            "opus": settings.model_opus,
+            "sonnet": settings.model_sonnet,
+            "haiku": settings.model_haiku,
+        },
+        "ui": "/ui"
     }
 
 
@@ -209,6 +242,35 @@ async def list_models(_auth=Depends(require_api_key)):
     )
 
 
+# =============================================================================
+# Auth & User Mocks (Claude Code Compatibility)
+# =============================================================================
+
+@router.get("/v1/users/me")
+async def users_me(_auth=Depends(require_api_key)):
+    """Mock user info for Claude Code."""
+    return {
+        "id": "user_antigravity_01",
+        "email": "antigravity@local.dev",
+        "name": "Antigravity User",
+        "created_at": "2024-01-01T00:00:00Z"
+    }
+
+@router.post("/v1/login")
+@router.post("/v1/auth/token")
+async def mock_login():
+    """Mock login success."""
+    return {
+        "token": "freecc",
+        "expires_at": "2099-01-01T00:00:00Z"
+    }
+
+@router.get("/v1/auth/status")
+async def mock_auth_status():
+    """Mock auth status."""
+    return {"status": "authenticated"}
+
+
 @router.post("/stop")
 async def stop_cli(request: Request, _auth=Depends(require_api_key)):
     """Stop all CLI sessions and pending tasks."""
@@ -225,3 +287,76 @@ async def stop_cli(request: Request, _auth=Depends(require_api_key)):
     count = await handler.stop_all_tasks()
     logger.info("STOP_CLI: source=handler cancelled_count={}", count)
     return {"status": "stopped", "cancelled_count": count}
+
+
+# =============================================================================
+# Managed Agents Routes
+# =============================================================================
+
+@router.get("/agents", response_model=AgentListResponse)
+@router.get("/v1/agents", response_model=AgentListResponse)
+async def list_agents(_auth=Depends(require_api_key)):
+    """List all registered agents."""
+    return AgentListResponse(data=agents_db.get_all_agents())
+
+
+@router.post("/agents")
+@router.post("/v1/agents")
+async def create_agent(request_data: CreateAgentRequest, _auth=Depends(require_api_key)):
+    """Create a new agent persona."""
+    agent_id = f"agent_{uuid.uuid4().hex[:12]}"
+    agent = agents_db.create_agent(agent_id, request_data.model_dump())
+    logger.info("AGENT_CREATED: id={} name={}", agent_id, agent["name"])
+    return agent
+
+
+@router.post("/agents/{agent_id}")
+async def update_agent(
+    agent_id: str, request_data: dict, _auth=Depends(require_api_key)
+):
+    """Update an existing agent persona (creates a new version)."""
+    agent = agents_db.update_agent(agent_id, request_data)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    logger.info("AGENT_UPDATED: id={} version={}", agent_id, agent["version"])
+    return agent
+
+
+@router.get("/agents/{agent_id}/versions", response_model=AgentVersionsResponse)
+async def list_agent_versions(agent_id: str, _auth=Depends(require_api_key)):
+    """List all versions of a specific agent."""
+    versions = agents_db.get_agent_versions(agent_id)
+    if versions is None:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    return AgentVersionsResponse(data=versions)
+
+
+@router.post("/agents/{agent_id}/archive")
+async def archive_agent(agent_id: str, _auth=Depends(require_api_key)):
+    """Archive an agent persona."""
+    agent = agents_db.archive_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    logger.info("AGENT_ARCHIVED: id={}", agent_id)
+    return agent
+
+
+@router.post("/config/mapping")
+async def update_mapping(
+    request_data: dict, settings: Settings = Depends(get_settings), _auth=Depends(require_api_key)
+):
+    """Update model mapping configuration in-memory."""
+    if "opus" in request_data:
+        settings.model_opus = request_data["opus"]
+    if "sonnet" in request_data:
+        settings.model_sonnet = request_data["sonnet"]
+    if "haiku" in request_data:
+        settings.model_haiku = request_data["haiku"]
+    
+    logger.info("MAPPING_UPDATED: opus={} sonnet={} haiku={}", 
+                settings.model_opus, settings.model_sonnet, settings.model_haiku)
+    return {"status": "updated", "mapping": {
+        "opus": settings.model_opus,
+        "sonnet": settings.model_sonnet,
+        "haiku": settings.model_haiku
+    }}

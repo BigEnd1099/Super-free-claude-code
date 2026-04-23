@@ -1,8 +1,7 @@
 """
-Claude Code Proxy - Entry Point
-
-Minimal entry point that imports the app from the api module.
-Run with: uv run uvicorn server:app --host 0.0.0.0 --port 8082 --timeout-graceful-shutdown 5
+Claude Ultimate Antigravity - Unified Proxy & Managed Agents
+Unified entry point for free LLM access and local managed agents.
+Run with: uv run uvicorn server:app --host 0.0.0.0 --port 8082
 """
 
 from api.app import app, create_app

@@ -178,8 +178,12 @@ def require_api_key(
         token = header.split(" ", 1)[1]
 
     # Strip anything after the first colon to handle tokens with appended model names
+    raw_token = token
     if token and ":" in token:
         token = token.split(":", 1)[0]
+        request.state.model_override = raw_token.split(":", 1)[1]
+    else:
+        request.state.model_override = None
 
     if token != anthropic_auth_token:
         raise HTTPException(status_code=401, detail="Invalid API key")

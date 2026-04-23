@@ -1,8 +1,8 @@
 <div align="center">
 
-# 🤖 Free Claude Code
+# 🤖 Claude Ultimate Antigravity
 
-### Use Claude Code CLI & VSCode for free. No Anthropic API key required.
+### The Unified Powerhouse: Free LLM Access + Managed Agents
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Python 3.14](https://img.shields.io/badge/python-3.14-3776ab.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
@@ -29,6 +29,7 @@ A lightweight proxy that routes Claude Code's Anthropic API calls to **NVIDIA NI
 
 | Feature                    | Description                                                                                     |
 | -------------------------- | ----------------------------------------------------------------------------------------------- |
+| **Managed Agents**      | Built-in mock for persona management. Use your custom agents locally with Claude Code.          |
 | **Zero Cost**              | 40 req/min free on NVIDIA NIM. Free models on OpenRouter. Fully local with LM Studio            |
 | **Drop-in Replacement**    | Set 2 env vars. No modifications to Claude Code CLI or VSCode extension needed                  |
 | **5 Providers**            | NVIDIA NIM, OpenRouter, DeepSeek, LM Studio (local), llama.cpp (`llama-server`)                  |
@@ -203,16 +204,66 @@ uv run uvicorn server:app --host 0.0.0.0 --port 8082
 
 Point `ANTHROPIC_BASE_URL` at the proxy root URL, not `http://localhost:8082/v1`.
 
-#### Powershell
+#### Powershell (Interactive Launcher)
+The recommended way on Windows is to use the `cf` command, which handles server startup and model selection:
 ```powershell
-$env:ANTHROPIC_AUTH_TOKEN="freecc"; $env:ANTHROPIC_BASE_URL="http://localhost:8082"; claude
+.\cf.ps1
+you can use to get normal cf command:
+function cf { & "$PWD\cf.ps1" @args }
+if you want permament:
+Add-Content -Path $PROFILE -Value "`nfunction cf { & '$PWD\cf.ps1' @args }"
+
 ```
+See the [Windows Power Launcher](#windows-power-launcher-cf) section for setup and advanced usage.
+
 #### Bash
 ```bash
 ANTHROPIC_AUTH_TOKEN="freecc" ANTHROPIC_BASE_URL="http://localhost:8082" claude
 ```
 
 That's it! Claude Code now uses your configured provider for free.
+
+---
+
+## Windows Power Launcher (`cf`)
+
+The `cf.ps1` script is a professional PowerShell wrapper that streamlines your workflow on Windows.
+
+### Features
+- **Auto-Server**: Automatically starts the proxy server if it's not running.
+- **Interactive Picker**: Run `.\cf.ps1 -Pick` to choose models or agents from a GUI window.
+- **Direct Overrides**: Pass specific models or agents directly from the command line.
+- **Argument Splatting**: Correctly forwards all flags to the `claude` CLI.
+
+### Usage
+| Command | Description |
+| ------- | ----------- |
+| `cf` | Launch Claude with default `.env` settings. |
+| `cf -Pick` | Open the interactive GUI to select a Model or Agent. |
+| `cf -m <model>` | Launch directly with a specific model (e.g., `cf -m glm-5.1`). |
+| `cf -a <id>` | Launch with a specific Managed Agent (e.g., `cf -a st_modding`). |
+
+### Setup Alias
+Add this to your PowerShell `$PROFILE` to use `cf` from any folder:
+```powershell
+function cf { & "C:\path\to\free-claude-code\cf.ps1" @args }
+```
+
+---
+
+## Managed Agents
+
+Antigravity Agents allow you to define custom personas with specific system prompts and target models.
+
+### Using Agents with Claude Code
+When you select an agent (via the picker or `-a` flag), the proxy:
+1. Fetches the agent's **System Prompt**.
+2. Prepends it to every request from Claude Code.
+3. Automatically routes the request to the agent's **Target Model**.
+
+This transforms the standard Claude CLI into a specialized assistant for modding, design, or engineering tasks.
+
+---
 
 <details>
 <summary><b>VSCode Extension Setup</b></summary>

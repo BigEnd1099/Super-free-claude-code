@@ -83,7 +83,7 @@ class ThinkingConfig(BaseModel):
 # Request Models
 # =============================================================================
 class MessagesRequest(BaseModel):
-    model: str
+    model: str | dict[str, Any]
     max_tokens: int | None = None
     messages: list[Message]
     system: str | list[SystemContent] | None = None
@@ -107,12 +107,18 @@ class MessagesRequest(BaseModel):
         if self.original_model is None:
             self.original_model = self.model
 
-        resolved_full = settings.resolve_model(self.original_model)
+        model_id = self.model if isinstance(self.model, str) else self.model.get("id", "unknown")
+        resolved_full = settings.resolve_model(model_id)
         self.resolved_provider_model = resolved_full
-        self.model = Settings.parse_model_name(resolved_full)
+        
+        target_model = Settings.parse_model_name(resolved_full)
+        if isinstance(self.model, str):
+            self.model = target_model
+        else:
+            self.model["id"] = target_model
 
-        if self.model != self.original_model:
-            logger.debug(f"MODEL MAPPING: '{self.original_model}' -> '{self.model}'")
+        if target_model != model_id:
+            logger.debug(f"MODEL MAPPING: '{model_id}' -> '{target_model}'")
 
         return self
 
@@ -127,8 +133,15 @@ class TokenCountRequest(BaseModel):
 
     @field_validator("model")
     @classmethod
-    def validate_model_field(cls, v: str, info) -> str:
+    def validate_model_field(cls, v: str | dict[str, Any], info) -> str | dict[str, Any]:
         """Map any Claude model name to the configured model (model-aware)."""
         settings = get_settings()
-        resolved_full = settings.resolve_model(v)
-        return Settings.parse_model_name(resolved_full)
+        model_id = v if isinstance(v, str) else v.get("id", "unknown")
+        resolved_full = settings.resolve_model(model_id)
+        target_model = Settings.parse_model_name(resolved_full)
+        
+        if isinstance(v, str):
+            return target_model
+        else:
+            v["id"] = target_model
+            return v

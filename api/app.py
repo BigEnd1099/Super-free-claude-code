@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
 from config.logging_config import configure_logging
@@ -190,6 +191,13 @@ def create_app() -> FastAPI:
 
     # Register routes
     app.include_router(router)
+
+    # Serve static files for the WebUI
+    static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+    if os.path.exists(static_dir):
+        app.mount("/ui", StaticFiles(directory=static_dir, html=True), name="static")
+    else:
+        logger.warning(f"Static directory not found: {static_dir}")
 
     # Exception handlers
     @app.exception_handler(ProviderError)
