@@ -56,6 +56,13 @@
                     </svg>
                     Configuration
                 </a>
+                <a href="#" class="nav-item" data-tab="skills" role="button" tabindex="0">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.54-2.44 2.5 2.5 0 0 1-2-2.5 2.5 2.5 0 0 1 2-2.5 2.5 2.5 0 0 1 2.54-2.44A2.5 2.5 0 0 1 7.04 5.44 2.5 2.5 0 0 1 9.5 2z"></path>
+                        <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.54-2.44 2.5 2.5 0 0 0 2-2.5 2.5 2.5 0 0 0-2-2.5 2.5 2.5 0 0 0-2.54-2.44 2.5 2.5 0 0 0-2.54-2.06 2.5 2.5 0 0 0-2.46-3.44z"></path>
+                    </svg>
+                    Skills Library
+                </a>
             </nav>
             <div class="sidebar-footer">
                 <div class="status-indicator">
@@ -188,6 +195,26 @@
                             <input type="text" id="cfg-auth-token" placeholder="Optional" aria-describedby="auth-token-help">
                             <small id="auth-token-help" style="color: var(--text-muted); margin-top: 0.25rem; display: block;">Optional authentication token</small>
                         </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Skills Tab -->
+            <section id="skills" class="tab-content">
+                <header class="tab-header">
+                    <h1>Neural Skills</h1>
+                    <p class="subtitle">Search and select from 1,200+ specialized expansion modules.</p>
+                </header>
+                
+                <div class="search-box mb-6">
+                    <input type="text" id="skill-search" placeholder="Search 1,200+ neural skills..." style="width: 100%; max-width: 400px; background: var(--bg-accent); border: 1px solid rgba(255,255,255,0.1); padding: 0.75rem 1rem; border-radius: 12px; color: #fff;">
+                </div>
+
+                <div class="skills-grid" id="skills-container">
+                    <!-- Skills will be injected here -->
+                    <div class="loading-spinner">
+                        <div class="spinner"></div>
+                        <span>Scanning Neural Library...</span>
                     </div>
                 </div>
             </section>

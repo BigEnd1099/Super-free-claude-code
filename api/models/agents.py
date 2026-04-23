@@ -1,9 +1,12 @@
 from typing import Any, Literal
-from pydantic import BaseModel, Field
+
+from pydantic import BaseModel
+
 
 class AgentModelConfig(BaseModel):
     id: str
     speed: Literal["standard", "fast"] = "standard"
+
 
 class Agent(BaseModel):
     id: str
@@ -22,6 +25,7 @@ class Agent(BaseModel):
     updated_at: str
     archived_at: str | None = None
 
+
 class CreateAgentRequest(BaseModel):
     name: str
     model: str | AgentModelConfig
@@ -33,8 +37,10 @@ class CreateAgentRequest(BaseModel):
     callable_agents: list[dict[str, Any]] | None = None
     metadata: dict[str, Any] | None = None
 
+
 class AgentListResponse(BaseModel):
     data: list[dict[str, Any]]
+
 
 class AgentVersionsResponse(BaseModel):
     data: list[Agent]

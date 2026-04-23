@@ -139,7 +139,7 @@ class LlamaCppProvider(BaseProvider):
                     )
                 else:
                     error_message = get_user_facing_error_message(
-                        mapped_e, read_timeout_s=self._config.http_read_timeout
+                        mapped_e, read_timeout_s=self.config.http_read_timeout
                     )
                 if request_id:
                     error_message += f"\nRequest ID: {request_id}"

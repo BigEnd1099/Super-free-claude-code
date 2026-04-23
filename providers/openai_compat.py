@@ -295,7 +295,7 @@ class OpenAICompatibleProvider(BaseProvider):
                     )
                 else:
                     base_message = get_user_facing_error_message(
-                        mapped_e, read_timeout_s=self._config.http_read_timeout
+                        mapped_e, read_timeout_s=self.config.http_read_timeout
                     )
                 error_message = append_request_id(base_message, request_id)
                 logger.info(

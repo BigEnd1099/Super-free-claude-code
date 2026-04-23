@@ -14,6 +14,8 @@ from providers.lmstudio import LMStudioProvider
 from providers.nvidia_nim import NVIDIA_NIM_BASE_URL, NvidiaNimProvider
 from providers.open_router import OPENROUTER_BASE_URL, OpenRouterProvider
 
+from .agents_db import MAX_AGENT_CALL_DEPTH
+
 # Provider registry: keyed by provider type string, lazily populated
 _providers: dict[str, BaseProvider] = {}
 
@@ -159,6 +161,22 @@ def require_api_key(
     Checks `x-api-key` header or `Authorization: Bearer ...` against
     `Settings.anthropic_auth_token`. If `ANTHROPIC_AUTH_TOKEN` is empty, this is a no-op.
     """
+    # Localhost bypass for dashboard/monitoring
+    host = request.client.host if request.client else ""
+    is_local = host in ("127.0.0.1", "::1", "localhost")
+    
+    # Allow GET/HEAD to monitoring and agent metadata routes from localhost
+    path = request.url.path
+    is_safe_method = request.method in ("GET", "HEAD")
+    is_safe_path = (
+        path in ("/", "/pulse", "/health", "/v1/health", "/v1/skills") or 
+        path.startswith("/agents") or 
+        path.startswith("/v1/agents")
+    )
+    
+    if is_local and is_safe_method and is_safe_path:
+        return
+        
     anthropic_auth_token = settings.anthropic_auth_token
     if not anthropic_auth_token:
         # No API key configured -> allow
@@ -187,6 +205,28 @@ def require_api_key(
 
     if token != anthropic_auth_token:
         raise HTTPException(status_code=401, detail="Invalid API key")
+
+
+def check_depth(request: Request) -> int:
+    """Check and increment the agent call depth.
+
+    Prevents infinite loops in agent-to-agent communication.
+    """
+    depth_str = request.headers.get("X-Antigravity-Depth", "0")
+    try:
+        depth = int(depth_str)
+    except ValueError:
+        depth = 0
+
+    if depth >= MAX_AGENT_CALL_DEPTH:
+        logger.warning("MAX_AGENT_CALL_DEPTH reached: depth={}", depth)
+        raise HTTPException(
+            status_code=429,
+            detail=f"Maximum agent call depth ({MAX_AGENT_CALL_DEPTH}) exceeded.",
+        )
+
+    request.state.depth = depth
+    return depth
 
 
 def get_provider() -> BaseProvider:

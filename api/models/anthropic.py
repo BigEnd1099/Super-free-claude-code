@@ -107,10 +107,14 @@ class MessagesRequest(BaseModel):
         if self.original_model is None:
             self.original_model = self.model
 
-        model_id = self.model if isinstance(self.model, str) else self.model.get("id", "unknown")
+        model_id = (
+            self.model
+            if isinstance(self.model, str)
+            else self.model.get("id", "unknown")
+        )
         resolved_full = settings.resolve_model(model_id)
         self.resolved_provider_model = resolved_full
-        
+
         target_model = Settings.parse_model_name(resolved_full)
         if isinstance(self.model, str):
             self.model = target_model
@@ -133,13 +137,15 @@ class TokenCountRequest(BaseModel):
 
     @field_validator("model")
     @classmethod
-    def validate_model_field(cls, v: str | dict[str, Any], info) -> str | dict[str, Any]:
+    def validate_model_field(
+        cls, v: str | dict[str, Any], info
+    ) -> str | dict[str, Any]:
         """Map any Claude model name to the configured model (model-aware)."""
         settings = get_settings()
         model_id = v if isinstance(v, str) else v.get("id", "unknown")
         resolved_full = settings.resolve_model(model_id)
         target_model = Settings.parse_model_name(resolved_full)
-        
+
         if isinstance(v, str):
             return target_model
         else:

@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -42,6 +43,7 @@ async def _best_effort(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
+    app.state.start_time = time.time()
     settings = get_settings()
     logger.info("Starting Claude Code Proxy...")
 

@@ -1,4 +1,10 @@
-# Usage: .\cf.ps1 [-Pick] [-Model model] [-Agent agent] [extra claude args...]
+# Usage: .\cf.ps1 [-Pick] [extra claude args...]
+
+param(
+    [switch]$Pick,
+    [Alias("m")][string]$Model,
+    [Alias("a")][string]$Agent
+)
 
 $SCRIPT_DIR = $PSScriptRoot
 $ENV_FILE = Join-Path $SCRIPT_DIR ".env"
@@ -6,30 +12,7 @@ $MODELS_FILE = Join-Path $SCRIPT_DIR "nvidia_nim_models.json"
 $AGENTS_FILE = Join-Path $SCRIPT_DIR "agents_db.json"
 $DEFAULT_PORT = 8082
 
-# 0. Manual Argument Parsing (to avoid clashing with Claude's -p, -v, etc.)
-$Selection = $false
-$Model = $null
-$Agent = $null
-$ClaudeArgs = @()
-
-$i = 0
-while ($i -lt $args.Count) {
-    $arg = $args[$i]
-    if ($arg -match "^-(Pick|Selection|Select)$") {
-        $Selection = $true
-    } elseif ($arg -match "^-(Model|m)$") {
-        $i++
-        if ($i -lt $args.Count) { $Model = $args[$i] }
-    } elseif ($arg -match "^-(Agent|a)$") {
-        $i++
-        if ($i -lt $args.Count) { $Agent = $args[$i] }
-    } else {
-        $ClaudeArgs += $arg
-    }
-    $i++
-}
-
-# 1. Load basic settings from .env
+# 1. Load basic settings from .env (simple parser)
 function Get-EnvValue($key) {
     if (Test-Path $ENV_FILE) {
         $line = Get-Content $ENV_FILE | Where-Object { $_ -match "^\s*${key}\s*=" } | Select-Object -Last 1
@@ -59,7 +42,10 @@ try {
 
 if (-not $serverRunning) {
     Write-Host "[*] Starting Claude Code Proxy on port $PORT..." -ForegroundColor Cyan
+    # Start the server in a new window
     Start-Process "uv" -ArgumentList "run", "uvicorn", "server:app", "--port", $PORT, "--host", "0.0.0.0" -WindowStyle Minimized
+    
+    # Wait a moment for it to start
     Write-Host "[...] Waiting for server to initialize..." -ForegroundColor Gray
     $retries = 10
     while (-not $serverRunning -and $retries -gt 0) {
@@ -70,8 +56,10 @@ if (-not $serverRunning) {
         } catch {}
         $retries--
     }
+    
     if (-not $serverRunning) {
         Write-Host "[!] Error: Failed to start the proxy server automatically." -ForegroundColor Red
+        Write-Host "    Please try running it manually: uv run uvicorn server:app --port $PORT" -ForegroundColor Gray
         exit 1
     }
 }
@@ -89,27 +77,42 @@ if ($Model) {
     $selectionType = "Agent"
 } else {
     # Only show picker if -Pick is passed, OR if no arguments are passed and NVIDIA NIM is NOT the primary provider
-    $shouldPick = $Selection
-    if (-not $shouldPick -and $ClaudeArgs.Count -eq 0 -and [string]::IsNullOrWhiteSpace($NIM_KEY)) {
+    $shouldPick = $Pick.IsPresent
+    if (-not $shouldPick -and $args.Count -eq 0 -and [string]::IsNullOrWhiteSpace($NIM_KEY)) {
         $shouldPick = $true
     }
 
     if ($shouldPick) {
         Write-Host "[?] Preparing selection..." -ForegroundColor Gray
+        
         $options = @()
+        
+        # Add Models from JSON if exists
         if (Test-Path $MODELS_FILE) {
             $modelsData = Get-Content $MODELS_FILE | ConvertFrom-Json
             foreach ($m in $modelsData.data) {
-                $options += [PSCustomObject]@{ Type = "Model"; Name = "nvidia_nim/$($m.id)"; Description = "NVIDIA NIM / Provider Model" }
+                $options += [PSCustomObject]@{
+                    Type = "Model"
+                    Name = "nvidia_nim/$($m.id)"
+                    Description = "NVIDIA NIM / Provider Model"
+                }
             }
         }
+        
+        # Add Agents from DB if exists
         if (Test-Path $AGENTS_FILE) {
             $agentsData = Get-Content $AGENTS_FILE | ConvertFrom-Json
             foreach ($agentId in $agentsData.psobject.Properties.Name) {
-                $latest = $agentsData.$agentId[-1]
-                $options += [PSCustomObject]@{ Type = "Agent"; Name = $agentId; Description = "Managed Agent: $($latest.name)" }
+                $versions = $agentsData.$agentId
+                $latest = $versions[-1]
+                $options += [PSCustomObject]@{
+                    Type = "Agent"
+                    Name = $agentId
+                    Description = "Managed Agent: $($latest.name)"
+                }
             }
         }
+        
         if ($options.Count -gt 0) {
             $selection = $options | Out-GridView -Title "Select a Model or Agent for Claude Code" -OutputMode Single
             if ($selection) {
@@ -122,6 +125,7 @@ if ($Model) {
 
 # 4. Configure Environment
 $env:ANTHROPIC_BASE_URL = $BASE_URL
+
 if ($selectionName) {
     $env:ANTHROPIC_AUTH_TOKEN = "${AUTH_TOKEN}:$selectionName"
     Write-Host "[>] Launching Claude with ${selectionType}: $selectionName..." -ForegroundColor Cyan
@@ -131,8 +135,4 @@ if ($selectionName) {
 }
 
 # 5. Execute
-if ($ClaudeArgs) {
-    claude @ClaudeArgs
-} else {
-    claude
-}
+claude @args

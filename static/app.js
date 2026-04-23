@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (tabId === 'agents') fetchAgents();
             if (tabId === 'dashboard') fetchStats();
+            if (tabId === 'skills') fetchSkills();
         });
 
         // Keyboard navigation support
@@ -290,4 +291,53 @@ document.addEventListener('DOMContentLoaded', () => {
         rateLimit = Math.max(0, Math.min(100, rateLimit + (Math.random() > 0.5 ? 5 : -5)));
         document.getElementById('rate-bar').style.width = rateLimit + '%';
     }, 3000);
+
+    // Fetch Skills
+    let allSkills = [];
+    async function fetchSkills() {
+        const container = document.getElementById('skills-container');
+        if (allSkills.length > 0) {
+            renderSkills(allSkills);
+            return;
+        }
+
+        try {
+            const response = await fetch('/v1/skills');
+            const data = await response.json();
+            allSkills = data.data;
+            renderSkills(allSkills);
+        } catch (err) {
+            container.innerHTML = `<div class="subtitle" style="color: var(--color-danger)">Error scanning neural library: ${escapeHtml(err.message)}</div>`;
+        }
+    }
+
+    function renderSkills(skills) {
+        const container = document.getElementById('skills-container');
+        if (skills.length === 0) {
+            container.innerHTML = '<div class="subtitle">No neural skills discovered.</div>';
+            return;
+        }
+
+        container.innerHTML = skills.map(skill => `
+            <div class="skill-card">
+                <h3>${escapeHtml(skill.name)}</h3>
+                <p>${escapeHtml(skill.description || 'Neural expansion module for specialized tasks.')}</p>
+                <div class="skill-id">${escapeHtml(skill.id)}</div>
+            </div>
+        `).join('');
+    }
+
+    // Skill Search
+    const skillSearch = document.getElementById('skill-search');
+    if (skillSearch) {
+        skillSearch.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const filtered = allSkills.filter(s => 
+                s.name.toLowerCase().includes(query) || 
+                (s.description && s.description.toLowerCase().includes(query)) ||
+                s.id.toLowerCase().includes(query)
+            );
+            renderSkills(filtered);
+        });
+    }
 });

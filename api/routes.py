@@ -1,8 +1,14 @@
 """FastAPI route handlers."""
 
+import asyncio
+import json
+import time
 import traceback
 import uuid
 
+import psutil
+import yaml
+from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from loguru import logger
@@ -11,15 +17,52 @@ from config.settings import Settings
 from providers.common import get_user_facing_error_message
 from providers.exceptions import InvalidRequestError, ProviderError
 
-from .dependencies import get_provider_for_type, get_settings, require_api_key
+from .agents_db import agents_db
+from .dependencies import (
+    check_depth,
+    get_provider_for_type,
+    get_settings,
+    require_api_key,
+)
+from .models.agents import AgentListResponse, AgentVersionsResponse, CreateAgentRequest
+from .models.skills import SkillInfo, SkillListResponse
 from .models.anthropic import MessagesRequest, TokenCountRequest
 from .models.responses import ModelResponse, ModelsListResponse, TokenCountResponse
-from .models.agents import AgentListResponse, AgentVersionsResponse, CreateAgentRequest
-from .agents_db import agents_db
 from .optimization_handlers import try_optimizations
 from .request_utils import get_token_count
 
 router = APIRouter()
+
+
+@router.get("/pulse")
+async def pulse_stream(request: Request):
+    """Stream server stats (CPU, Memory, Uptime) for the dashboard."""
+
+    async def event_generator():
+        start_time = getattr(request.app.state, "start_time", time.time())
+        while True:
+            try:
+                stats = {
+                    "cpu": psutil.cpu_percent(),
+                    "memory": psutil.virtual_memory().percent,
+                    "uptime": int(time.time() - start_time),
+                    "status": "healthy",
+                }
+                yield f"data: {json.dumps(stats)}\n\n"
+            except Exception as e:
+                logger.error(f"Pulse error: {e}")
+                yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
+            await asyncio.sleep(1)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 SUPPORTED_CLAUDE_MODELS = [
@@ -75,6 +118,7 @@ async def create_message(
     raw_request: Request,
     settings: Settings = Depends(get_settings),
     _auth=Depends(require_api_key),
+    _depth: int = Depends(check_depth),
 ):
     """Create a message (always streaming)."""
 
@@ -91,15 +135,77 @@ async def create_message(
             if override.startswith("agent_"):
                 agent = agents_db.get_agent(override)
                 if agent:
-                    logger.info("AGENT_OVERRIDE: id={} name={}", override, agent["name"])
+                    logger.info(
+                        "AGENT_OVERRIDE: id={} name={}", override, agent["name"]
+                    )
+
+                    # Inject callable agents as tools
+                    callable_agents = agent.get("callable_agents") or []
+                    if callable_agents:
+                        if not request_data.tools:
+                            request_data.tools = []
+
+                        agent_tools_desc = []
+                        for ca in callable_agents:
+                            ca_id = ca["id"]
+                            ca_name = ca["name"]
+                            tool_name = f"call_agent_{ca_id.replace('agent_', '')}"
+
+                            # Check if tool already exists
+                            if not any(
+                                t.get("name") == tool_name for t in request_data.tools
+                            ):
+                                request_data.tools.append(
+                                    {
+                                        "name": tool_name,
+                                        "description": f"Call specialized agent: {ca_name}. Use this for tasks requiring {ca_name}'s expertise.",
+                                        "input_schema": {
+                                            "type": "object",
+                                            "properties": {
+                                                "prompt": {
+                                                    "type": "string",
+                                                    "description": "The specific instruction or question for the agent.",
+                                                }
+                                            },
+                                            "required": ["prompt"],
+                                        },
+                                    }
+                                )
+                                agent_tools_desc.append(f"- {tool_name}: {ca_name}")
+
+                        if agent_tools_desc:
+                            orchestration_prompt = (
+                                "\n\n### Agent Orchestration:\n"
+                                "You have access to specialized sub-agents. To use them, call their respective tools. "
+                                "The results will be provided back to you.\n"
+                                + "\n".join(agent_tools_desc)
+                            )
+                            if isinstance(request_data.system, str):
+                                request_data.system += orchestration_prompt
+                            elif isinstance(request_data.system, list):
+                                from .models.anthropic import SystemContent
+
+                                request_data.system.append(
+                                    SystemContent(
+                                        type="text", text=orchestration_prompt
+                                    )
+                                )
+                            else:
+                                request_data.system = orchestration_prompt
+
                     request_data.resolved_provider_model = agent["model"]
                     # Prepend agent system prompt if present
                     if agent.get("system"):
                         if isinstance(request_data.system, str):
-                            request_data.system = f"{agent['system']}\n\n{request_data.system}"
+                            request_data.system = (
+                                f"{agent['system']}\n\n{request_data.system}"
+                            )
                         elif isinstance(request_data.system, list):
                             from .models.anthropic import SystemContent
-                            request_data.system.insert(0, SystemContent(type="text", text=agent["system"]))
+
+                            request_data.system.insert(
+                                0, SystemContent(type="text", text=agent["system"])
+                            )
                         else:
                             request_data.system = agent["system"]
                 else:
@@ -111,12 +217,25 @@ async def create_message(
         # Resolve provider from the model-aware mapping
         resolved_model = request_data.resolved_provider_model or settings.model
         if "/" not in resolved_model:
-            logger.warning("MODEL_WITHOUT_PROVIDER: model={} - defaulting to nvidia_nim", resolved_model)
+            logger.warning(
+                "MODEL_WITHOUT_PROVIDER: model={} - defaulting to nvidia_nim",
+                resolved_model,
+            )
             resolved_model = f"nvidia_nim/{resolved_model}"
             request_data.resolved_provider_model = resolved_model
 
         provider_type = Settings.parse_provider_type(resolved_model)
         provider = get_provider_for_type(provider_type)
+
+        # Configure fallback (e.g. NVIDIA NIM -> OpenRouter)
+        fallback_provider = None
+        if provider_type == "nvidia_nim" and settings.open_router_api_key:
+            import contextlib
+
+            with contextlib.suppress(Exception):
+                fallback_provider = get_provider_for_type("open_router")
+
+        from providers.resilience import with_resilient_stream
 
         request_id = f"req_{uuid.uuid4().hex[:12]}"
         logger.info(
@@ -130,17 +249,22 @@ async def create_message(
         input_tokens = get_token_count(
             request_data.messages, request_data.system, request_data.tools
         )
+
         return StreamingResponse(
-            provider.stream_response(
+            with_resilient_stream(
+                provider.stream_response,
                 request_data,
                 input_tokens=input_tokens,
                 request_id=request_id,
+                fallback_func=fallback_provider.stream_response
+                if fallback_provider
+                else None,
             ),
             media_type="text/event-stream",
             headers={
-                "X-Accel-Buffering": "no",
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
             },
         )
 
@@ -209,7 +333,7 @@ async def root(
             "sonnet": settings.model_sonnet,
             "haiku": settings.model_haiku,
         },
-        "ui": "/ui"
+        "ui": "/ui",
     }
 
 
@@ -246,6 +370,7 @@ async def list_models(_auth=Depends(require_api_key)):
 # Auth & User Mocks (Claude Code Compatibility)
 # =============================================================================
 
+
 @router.get("/v1/users/me")
 async def users_me(_auth=Depends(require_api_key)):
     """Mock user info for Claude Code."""
@@ -253,17 +378,16 @@ async def users_me(_auth=Depends(require_api_key)):
         "id": "user_antigravity_01",
         "email": "antigravity@local.dev",
         "name": "Antigravity User",
-        "created_at": "2024-01-01T00:00:00Z"
+        "created_at": "2024-01-01T00:00:00Z",
     }
+
 
 @router.post("/v1/login")
 @router.post("/v1/auth/token")
 async def mock_login():
     """Mock login success."""
-    return {
-        "token": "freecc",
-        "expires_at": "2099-01-01T00:00:00Z"
-    }
+    return {"token": "freecc", "expires_at": "2099-01-01T00:00:00Z"}
+
 
 @router.get("/v1/auth/status")
 async def mock_auth_status():
@@ -293,6 +417,7 @@ async def stop_cli(request: Request, _auth=Depends(require_api_key)):
 # Managed Agents Routes
 # =============================================================================
 
+
 @router.get("/agents", response_model=AgentListResponse)
 @router.get("/v1/agents", response_model=AgentListResponse)
 async def list_agents(_auth=Depends(require_api_key)):
@@ -302,7 +427,9 @@ async def list_agents(_auth=Depends(require_api_key)):
 
 @router.post("/agents")
 @router.post("/v1/agents")
-async def create_agent(request_data: CreateAgentRequest, _auth=Depends(require_api_key)):
+async def create_agent(
+    request_data: CreateAgentRequest, _auth=Depends(require_api_key)
+):
     """Create a new agent persona."""
     agent_id = f"agent_{uuid.uuid4().hex[:12]}"
     agent = agents_db.create_agent(agent_id, request_data.model_dump())
@@ -341,9 +468,64 @@ async def archive_agent(agent_id: str, _auth=Depends(require_api_key)):
     return agent
 
 
+@router.get("/v1/skills", response_model=SkillListResponse)
+async def list_skills(settings: Settings = Depends(get_settings), _auth=Depends(require_api_key)):
+    """List available skills from the configured skills directory."""
+    skills_path = Path(settings.skills_dir)
+    if not skills_path.exists():
+        logger.warning(f"Skills directory not found: {settings.skills_dir}")
+        return SkillListResponse(data=[])
+
+    skills = []
+    # Use a set to track processed directories to avoid duplicates if any
+    processed = set()
+
+    # Limit to top-level directories for now to keep it fast
+    try:
+        for item in skills_path.iterdir():
+            if item.is_dir() and item.name not in processed:
+                skill_id = item.name
+                skill_md = item / "SKILL.md"
+                
+                name = skill_id
+                description = None
+                version = None
+                
+                if skill_md.exists():
+                    try:
+                        content = skill_md.read_text(encoding="utf-8")
+                        if content.startswith("---"):
+                            # Simple YAML frontmatter parser
+                            parts = content.split("---", 2)
+                            if len(parts) >= 3:
+                                meta = yaml.safe_load(parts[1])
+                                if isinstance(meta, dict):
+                                    name = meta.get("name", name)
+                                    description = meta.get("description")
+                                    version = meta.get("version")
+                    except Exception as e:
+                        logger.debug(f"Error parsing {skill_md}: {e}")
+                
+                skills.append(SkillInfo(
+                    id=skill_id,
+                    name=name,
+                    description=description,
+                    path=str(item),
+                    version=version
+                ))
+                processed.add(skill_id)
+    except Exception as e:
+        logger.error(f"Error scanning skills: {e}")
+        raise HTTPException(status_code=500, detail="Failed to scan skills directory")
+
+    return SkillListResponse(data=skills)
+
+
 @router.post("/config/mapping")
 async def update_mapping(
-    request_data: dict, settings: Settings = Depends(get_settings), _auth=Depends(require_api_key)
+    request_data: dict,
+    settings: Settings = Depends(get_settings),
+    _auth=Depends(require_api_key),
 ):
     """Update model mapping configuration in-memory."""
     if "opus" in request_data:
@@ -352,11 +534,18 @@ async def update_mapping(
         settings.model_sonnet = request_data["sonnet"]
     if "haiku" in request_data:
         settings.model_haiku = request_data["haiku"]
-    
-    logger.info("MAPPING_UPDATED: opus={} sonnet={} haiku={}", 
-                settings.model_opus, settings.model_sonnet, settings.model_haiku)
-    return {"status": "updated", "mapping": {
-        "opus": settings.model_opus,
-        "sonnet": settings.model_sonnet,
-        "haiku": settings.model_haiku
-    }}
+
+    logger.info(
+        "MAPPING_UPDATED: opus={} sonnet={} haiku={}",
+        settings.model_opus,
+        settings.model_sonnet,
+        settings.model_haiku,
+    )
+    return {
+        "status": "updated",
+        "mapping": {
+            "opus": settings.model_opus,
+            "sonnet": settings.model_sonnet,
+            "haiku": settings.model_haiku,
+        },
+    }

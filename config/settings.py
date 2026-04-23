@@ -181,6 +181,10 @@ class Settings(BaseSettings):
     )
     claude_workspace: str = "./agent_workspace"
     allowed_dir: str = ""
+    skills_dir: str = Field(
+        default=os.path.expanduser("~/.claude/skills"),
+        validation_alias="SKILLS_DIR"
+    )
 
     # ==================== Server ====================
     host: str = "0.0.0.0"

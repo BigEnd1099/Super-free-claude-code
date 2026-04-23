@@ -40,7 +40,7 @@ class ToolCallState:
     name: str
     contents: list[str] = field(default_factory=list)
     started: bool = False
-    task_arg_buffer: str = ""
+    task_arg_parts: list[str] = field(default_factory=list)
     task_args_emitted: bool = False
 
 
@@ -89,9 +89,10 @@ class ContentBlockManager:
         if state is None or state.task_args_emitted:
             return None
 
-        state.task_arg_buffer += args
+        state.task_arg_parts.append(args)
+        buffer = "".join(state.task_arg_parts)
         try:
-            args_json = json.loads(state.task_arg_buffer)
+            args_json = json.loads(buffer)
         except Exception:
             return None
 
@@ -99,34 +100,35 @@ class ContentBlockManager:
             args_json["run_in_background"] = False
 
         state.task_args_emitted = True
-        state.task_arg_buffer = ""
+        state.task_arg_parts.clear()
         return args_json
 
     def flush_task_arg_buffers(self) -> list[tuple[int, str]]:
         """Flush any remaining Task arg buffers. Returns (tool_index, json_str) pairs."""
         results: list[tuple[int, str]] = []
         for tool_index, state in list(self.tool_states.items()):
-            if not state.task_arg_buffer or state.task_args_emitted:
+            if not state.task_arg_parts or state.task_args_emitted:
                 continue
 
+            buffer = "".join(state.task_arg_parts)
             out = "{}"
             try:
-                args_json = json.loads(state.task_arg_buffer)
+                args_json = json.loads(buffer)
                 if args_json.get("run_in_background") is not False:
                     args_json["run_in_background"] = False
                 out = json.dumps(args_json)
             except Exception as e:
-                prefix = state.task_arg_buffer[:120]
+                prefix = buffer[:120]
                 logger.warning(
                     "Task args invalid JSON (id={} len={} prefix={!r}): {}",
                     state.tool_id or "unknown",
-                    len(state.task_arg_buffer),
+                    len(buffer),
                     prefix,
                     e,
                 )
 
             state.task_args_emitted = True
-            state.task_arg_buffer = ""
+            state.task_arg_parts.clear()
             results.append((tool_index, out))
         return results
 

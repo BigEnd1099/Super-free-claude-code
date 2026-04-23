@@ -31,6 +31,20 @@ class BaseProvider(ABC):
 
     def __init__(self, config: ProviderConfig):
         self._config = config
+        self._current_task: str | None = None
+
+    @property
+    def config(self) -> ProviderConfig:
+        """Accessor for the provider configuration."""
+        return self._config
+
+    def set_current_task(self, task_id: str | None) -> None:
+        """Set the current task ID for tracking/logging."""
+        self._current_task = task_id
+
+    def get_current_task(self) -> str | None:
+        """Get the current active task ID."""
+        return self._current_task
 
     def _is_thinking_enabled(self, request: Any) -> bool:
         """Return whether thinking should be enabled for this request."""
@@ -40,7 +54,7 @@ class BaseProvider(ABC):
             if thinking is not None and hasattr(thinking, "enabled")
             else True
         )
-        return self._config.enable_thinking and request_enabled
+        return self.config.enable_thinking and request_enabled
 
     @abstractmethod
     async def cleanup(self) -> None:
