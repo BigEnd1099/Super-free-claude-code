@@ -4,7 +4,6 @@
 
 ### The Unified Powerhouse: Free LLM Access + Managed Agents
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Python 3.14](https://img.shields.io/badge/python-3.14-3776ab.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json&style=for-the-badge)](https://github.com/astral-sh/uv)
 [![Tested with Pytest](https://img.shields.io/badge/testing-Pytest-00c0ff.svg?style=for-the-badge)](https://github.com/Alishahryar1/free-claude-code/actions/workflows/tests.yml)
@@ -638,22 +637,17 @@ class MyProvider(OpenAICompatibleProvider):
 
 ## Contributing
 
-- Report bugs or suggest features via [Issues](https://github.com/Alishahryar1/free-claude-code/issues)
-- Add new LLM providers (Groq, Together AI, etc.)
-- Add new messaging platforms (Slack, etc.)
-- Improve test coverage
-- Not accepting Docker integration PRs for now
+This project is currently private and not open for public contributions or forks. If you have suggestions or would like to discuss the project, please contact the owner.
 
 ```bash
-git checkout -b my-feature
+# Development checks
 uv run ruff format && uv run ruff check && uv run ty check && uv run pytest
-# Open a pull request
 ```
 
 ---
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+All Rights Reserved. Not to be edited or distributed without explicit permission. See [LICENSE](LICENSE) for details.
 
 Built with [FastAPI](https://fastapi.tiangolo.com/), [OpenAI Python SDK](https://github.com/openai/openai-python), [discord.py](https://github.com/Rapptz/discord.py), and [python-telegram-bot](https://python-telegram-bot.org/).
