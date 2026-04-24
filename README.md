@@ -247,6 +247,10 @@ Add this to your PowerShell `$PROFILE` to use `cf` from any folder:
 ```powershell
 function cf { & "C:\path\to\free-claude-code\cf.ps1" @args }
 ```
+or
+```powershell 
+Set-Alias cf .\cf.ps1 
+```
 
 ---
 
