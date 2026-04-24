@@ -1,12 +1,13 @@
 from pydantic import BaseModel
-from typing import List, Optional
+
 
 class SkillInfo(BaseModel):
     id: str
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     path: str
-    version: Optional[str] = None
+    version: str | None = None
+
 
 class SkillListResponse(BaseModel):
-    data: List[SkillInfo]
+    data: list[SkillInfo]

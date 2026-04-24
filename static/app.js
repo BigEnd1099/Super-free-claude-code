@@ -1,4 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // Neural State
+    let allSkills = [];
+    let selectedSkills = [];
+    let totalTokens = 0; 
+    let totalCost = 0.00;
+
     // Navigation
     const navItems = document.querySelectorAll('.nav-item');
     const tabContents = document.querySelectorAll('.tab-content');
@@ -17,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (tabId === 'agents') fetchAgents();
             if (tabId === 'dashboard') fetchStats();
             if (tabId === 'skills') fetchSkills();
+            if (tabId === 'mission') fetchMissionStatus();
         });
 
         // Keyboard navigation support
@@ -28,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Modals
+    // Agent Modal
     const modal = document.getElementById('modal-agent');
     const btnNewAgent = document.getElementById('btn-new-agent');
     const btnCloseModal = document.getElementById('btn-close-modal');
@@ -40,18 +47,70 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnCloseModal.onclick = () => modal.classList.remove('active');
 
-    // Close modal on escape key
+    // MCP Modal
+    const modalMcp = document.getElementById('modal-mcp');
+    const btnNewMcp = document.getElementById('btn-new-mcp');
+    const btnCloseMcp = document.getElementById('btn-close-mcp');
+    const btnSaveMcp = document.getElementById('btn-save-mcp');
+
+    if (btnNewMcp) {
+        btnNewMcp.onclick = () => {
+            modalMcp.classList.add('active');
+            document.getElementById('mcp-name').focus();
+        };
+    }
+
+    if (btnCloseMcp) {
+        btnCloseMcp.onclick = () => modalMcp.classList.remove('active');
+    }
+
+    if (btnSaveMcp) {
+        btnSaveMcp.onclick = () => {
+            const name = document.getElementById('mcp-name').value;
+            const type = document.getElementById('mcp-type').value;
+            const command = document.getElementById('mcp-command').value;
+
+            if (!name || !command) return alert('Name and Command/URL are required');
+
+            // Add to list UI
+            const list = document.getElementById('mcp-server-list');
+            if (list.querySelector('.empty-state')) list.innerHTML = '';
+
+            const item = document.createElement('div');
+            item.className = 'mcp-item';
+            item.style = 'background: rgba(255,255,255,0.03); padding: 0.75rem; border-radius: 6px; margin-bottom: 0.5rem; border: 1px solid rgba(255,255,255,0.05);';
+            item.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <strong>${name}</strong>
+                    <span class="status-badge status-active" style="padding: 2px 6px; font-size: 0.7rem;">READY</span>
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">${type.toUpperCase()}: ${command}</div>
+            `;
+            list.prepend(item);
+
+            modalMcp.classList.remove('active');
+            // Reset form
+            document.getElementById('mcp-name').value = '';
+            document.getElementById('mcp-command').value = '';
+        };
+    }
+
+    // Close modals on escape key
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && modal.classList.contains('active')) {
-            modal.classList.remove('active');
+        if (e.key === 'Escape') {
+            if (modal.classList.contains('active')) modal.classList.remove('active');
+            if (modalMcp && modalMcp.classList.contains('active')) modalMcp.classList.remove('active');
         }
     });
 
-    // Close modal on backdrop click
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            modal.classList.remove('active');
-        }
+    // Close modals on backdrop click
+    [modal, modalMcp].forEach(m => {
+        if (!m) return;
+        m.addEventListener('click', (e) => {
+            if (e.target === m) {
+                m.classList.remove('active');
+            }
+        });
     });
 
     // Fetch Stats
@@ -69,6 +128,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('map-haiku').value = data.mapping.haiku || '';
             }
 
+            // Sync global toggles
+            if (data.settings) {
+                const toggles = {
+                    'cfg-hyper': 'hyper_analysis',
+                    'cfg-thinking': 'thinking',
+                    'cfg-adversarial': 'adversarial',
+                    'cfg-raw': 'raw_mode',
+                    'cfg-planning': 'planning'
+                };
+                for (const [id, key] of Object.entries(toggles)) {
+                    const el = document.getElementById(id);
+                    if (el) el.checked = !!data.settings[key];
+                }
+            }
+
             // Simulate some stats if not provided
             document.getElementById('stat-optimized').textContent = data.optimized_count || Math.floor(Math.random() * 10) + 5;
 
@@ -76,6 +150,32 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Failed to fetch stats:', err);
         }
     }
+
+    // Dynamic Config Updates
+    ['cfg-hyper', 'cfg-thinking', 'cfg-adversarial', 'cfg-raw', 'cfg-planning'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.onchange = async (e) => {
+                const map = {
+                    'cfg-hyper': 'hyper_analysis',
+                    'cfg-thinking': 'thinking',
+                    'cfg-adversarial': 'adversarial',
+                    'cfg-raw': 'raw_mode',
+                    'cfg-planning': 'planning'
+                };
+                const key = map[id];
+                try {
+                    await fetch('/v1/config', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ [key]: e.target.checked })
+                    });
+                } catch (err) {
+                    console.error('Failed to update config:', err);
+                }
+            };
+        }
+    });
 
     // Save Mapping
     document.getElementById('btn-save-mapping').onclick = async () => {
@@ -163,6 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isAntigravity = agent.metadata?.project === 'Antigravity';
                 const category = agent.metadata?.category || 'general';
                 const categoryColor = getCategoryColor(category);
+                const cost = agent.metadata?.total_cost || 0.00;
 
                 return `
                     <div class="agent-card ${isAntigravity ? 'antigravity-card' : ''}" tabindex="0" role="button" aria-label="Agent: ${agent.name}" style="animation-delay: ${index * 0.1}s">
@@ -176,7 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="meta">
                             <span class="meta-item">ID: ${escapeHtml(agent.id)}</span>
                             <span class="meta-item">v${agent.version}</span>
-                            <span class="meta-item">${new Date(agent.updated_at).toLocaleDateString()}</span>
+                            <span class="meta-item" style="color: var(--color-primary); font-weight: bold;">$${cost.toFixed(2)}</span>
                         </div>
                     </div>
                 `;
@@ -285,15 +386,34 @@ document.addEventListener('DOMContentLoaded', () => {
     // Auto-refresh stats
     setInterval(fetchStats, 10000);
 
-    // Simulate rate limit bar animation
-    let rateLimit = 5;
-    setInterval(() => {
-        rateLimit = Math.max(0, Math.min(100, rateLimit + (Math.random() > 0.5 ? 5 : -5)));
-        document.getElementById('rate-bar').style.width = rateLimit + '%';
-    }, 3000);
+    // System Health Monitoring (Real Data)
+    async function updateHealthMeters() {
+        try {
+            const response = await fetch('/v1/health/rate-limit');
+            const data = await response.json();
+            
+            // Update Rate Limit Bar (Real Data)
+            const rateBar = document.getElementById('rate-bar');
+            if (rateBar) {
+                const percent = (data.current_usage / data.rate_limit) * 100;
+                rateBar.style.width = Math.min(100, Math.max(2, percent)) + '%';
+                // Change color if approaching limit
+                rateBar.style.backgroundColor = percent > 80 ? 'var(--color-danger)' : 'var(--color-primary)';
+            }
+            
+            // Update Latency Simulation (linked to activity)
+            const latencyBar = document.querySelector('.meter:first-child .bar');
+            if (latencyBar) {
+                const lat = data.current_usage > 0 ? (15 + Math.random() * 10) : 5;
+                latencyBar.style.width = lat + '%';
+            }
+        } catch (err) {
+            console.error('Health monitor failed:', err);
+        }
+    }
+    setInterval(updateHealthMeters, 2000);
 
     // Fetch Skills
-    let allSkills = [];
     async function fetchSkills() {
         const container = document.getElementById('skills-container');
         if (allSkills.length > 0) {
@@ -318,13 +438,38 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        container.innerHTML = skills.map(skill => `
-            <div class="skill-card">
-                <h3>${escapeHtml(skill.name)}</h3>
-                <p>${escapeHtml(skill.description || 'Neural expansion module for specialized tasks.')}</p>
-                <div class="skill-id">${escapeHtml(skill.id)}</div>
-            </div>
-        `).join('');
+        container.innerHTML = skills.map(skill => {
+            const isActive = selectedSkills.includes(skill.id);
+            return `
+                <div class="skill-card ${isActive ? 'active' : ''}" data-id="${escapeHtml(skill.id)}">
+                    <h3>${escapeHtml(skill.name)}</h3>
+                    <p>${escapeHtml(skill.description || 'Neural expansion module for specialized tasks.')}</p>
+                    <div class="skill-id">${escapeHtml(skill.id)}</div>
+                </div>
+            `;
+        }).join('');
+
+        // Add click listeners for selection
+        container.querySelectorAll('.skill-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const id = card.getAttribute('data-id');
+                if (selectedSkills.includes(id)) {
+                    selectedSkills = selectedSkills.filter(s => s !== id);
+                    card.classList.remove('active');
+                } else {
+                    selectedSkills.push(id);
+                    card.classList.add('active');
+                }
+                updateAgentModalSkills();
+            });
+        });
+    }
+
+    function updateAgentModalSkills() {
+        const input = document.getElementById('agent-skills');
+        if (input) {
+            input.value = selectedSkills.join(', ');
+        }
     }
 
     // Skill Search
@@ -332,12 +477,188 @@ document.addEventListener('DOMContentLoaded', () => {
     if (skillSearch) {
         skillSearch.addEventListener('input', (e) => {
             const query = e.target.value.toLowerCase();
-            const filtered = allSkills.filter(s => 
-                s.name.toLowerCase().includes(query) || 
+            const filtered = allSkills.filter(s =>
+                s.name.toLowerCase().includes(query) ||
                 (s.description && s.description.toLowerCase().includes(query)) ||
                 s.id.toLowerCase().includes(query)
             );
             renderSkills(filtered);
         });
     }
+
+    // Mission Control
+    async function fetchMissionStatus() {
+        try {
+            const response = await fetch('/v1/mission/status');
+            const data = await response.json();
+            renderMissionStatus(data);
+            // Refresh main stats to sync model override
+            fetchStats();
+        } catch (err) {
+            console.error('Failed to fetch mission status:', err);
+        }
+    }
+
+    function renderMissionStatus(data) {
+        if (!data) return;
+
+        // Update Session Info
+        const sessionInfo = document.getElementById('active-session-info');
+        if (data.active_count > 0 && data.active_sessions) {
+            const sessions = Object.values(data.active_sessions);
+            const firstSession = sessions[0] || {};
+            sessionInfo.innerHTML = `
+                <div class="status-badge status-active">ACTIVE MISSION</div>
+                <p style="font-size: 0.9rem; color: var(--text-primary); margin-top: 0.5rem;">
+                    ${data.active_count} session(s) active
+                </p>
+                <p style="font-size: 0.75rem; color: var(--text-muted);">
+                    Model: ${firstSession.model || 'Unknown'}
+                </p>
+            `;
+        } else {
+            sessionInfo.innerHTML = `
+                <div class="status-badge status-idle">IDLE</div>
+                <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                    Waiting for mission launch...
+                </p>
+            `;
+        }
+
+        // Update Tool Count
+        const toolCountEl = document.getElementById('feed-tool-count');
+        if (toolCountEl) toolCountEl.textContent = `${data.tool_count || 0} tools used`;
+
+        // Update Change Log
+        const changeLog = document.getElementById('change-log');
+        if (!data.recent_changes || data.recent_changes.length === 0) {
+            changeLog.innerHTML = '<div class="empty-state">No changes detected yet.</div>';
+        } else {
+            changeLog.innerHTML = [...data.recent_changes].reverse().map(change => `
+                <div class="change-item">
+                    <div class="change-file" title="${change.file}">${change.file.split('\\').pop().split('/').pop()}</div>
+                    <div class="change-type type-${change.type}">${(change.type || 'edit').toUpperCase()}</div>
+                </div>
+            `).join('');
+        }
+
+        // Update Global Stats (Real Data)
+        totalTokens = data.total_tokens || 0;
+        totalCost = data.total_cost || 0;
+        
+        const tokensEl = document.getElementById('analytics-tokens');
+        const costEl = document.getElementById('analytics-cost');
+        if (tokensEl) tokensEl.textContent = formatNumber(totalTokens);
+        if (costEl) costEl.textContent = `$${totalCost.toFixed(2)}`;
+    }
+
+    // Abort All
+    document.getElementById('btn-stop-all').onclick = async () => {
+        if (!confirm('Are you sure you want to abort all active missions?')) return;
+        try {
+            await fetch('/v1/mission/stop', { method: 'POST' });
+            fetchMissionStatus();
+        } catch (err) {
+            alert('Failed to stop missions');
+        }
+    };
+
+    // Auto-refresh mission status if on mission tab
+    setInterval(() => {
+        const activeTab = document.querySelector('.nav-item.active').getAttribute('data-tab');
+        if (activeTab === 'mission') {
+            fetchMissionStatus();
+        }
+    }, 2000);
+
+    // WebSocket for Live Intelligence Feed & System Logs
+    function connectLogs() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/logs`;
+        const socket = new WebSocket(wsUrl);
+
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            if (data.type === 'tool_use') {
+                const status = data.status === 'INTERCEPTED_FAILURE' ? ' [HEALING...]' : '';
+                appendTerminalLine(`EXECUTOR: Calling tool '${data.tool}'${status}`, data.status === 'INTERCEPTED_FAILURE' ? 'system' : 'tool');
+                
+                const toolCountEl = document.getElementById('feed-tool-count');
+                if (toolCountEl) {
+                    const current = parseInt(toolCountEl.textContent) || 0;
+                    toolCountEl.textContent = `${current + 1} tools used`;
+                }
+            } else if (data.type === 'orchestration') {
+                appendTerminalLine(`ARCHITECT: ${data.action} - [${data.agent}]`, 'system');
+            } else if (data.type === 'tool_result') {
+                appendTerminalLine(`ARCHITECT: Tool Result Received (ID: ${data.tool_use_id.slice(-6)})`, 'system');
+            } else if (data.type === 'traffic') {
+                // Update System Logs
+                appendLogLine(`[${data.method}] ${data.path} - ${data.model} (${data.tokens} tokens)`, 'info');
+
+                // Update Global Stats
+                updateAnalytics(data.tokens);
+            }
+        };
+
+        socket.onclose = () => {
+            setTimeout(connectLogs, 5000); // Reconnect
+        };
+    }
+
+    function updateAnalytics(tokens) {
+        totalTokens += tokens;
+        // Approx cost: $15 per 1M tokens (Opus/Sonnet avg)
+        const sessionCost = (tokens / 1000000) * 15;
+        totalCost += sessionCost;
+
+        const tokensEl = document.getElementById('analytics-tokens');
+        const costEl = document.getElementById('analytics-cost');
+
+        if (tokensEl) tokensEl.textContent = formatNumber(totalTokens);
+        if (costEl) costEl.textContent = `$${totalCost.toFixed(2)}`;
+    }
+
+    function formatNumber(num) {
+        if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+        if (num >= 1000) return (num / 1000).toFixed(1) + 'k';
+        return num;
+    }
+
+    function appendLogLine(text, type = 'info') {
+        const logContent = document.getElementById('log-content');
+        if (!logContent) return;
+
+        const line = document.createElement('div');
+        line.style.marginBottom = '4px';
+        line.style.color = type === 'error' ? 'var(--color-danger)' : 'inherit';
+        line.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+
+        logContent.appendChild(line);
+        logContent.scrollTop = logContent.scrollHeight;
+
+        while (logContent.children.length > 50) {
+            logContent.removeChild(logContent.firstChild);
+        }
+    }
+
+    function appendTerminalLine(text, type = 'system') {
+        const feed = document.getElementById('intelligence-feed');
+        if (!feed) return;
+
+        const line = document.createElement('div');
+        line.className = `terminal-line ${type}`;
+        line.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+
+        feed.appendChild(line);
+        feed.scrollTop = feed.scrollHeight;
+
+        // Limit lines
+        while (feed.children.length > 100) {
+            feed.removeChild(feed.firstChild);
+        }
+    }
+
+    connectLogs();
 });

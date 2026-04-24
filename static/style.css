@@ -579,6 +579,87 @@ nav {
 }
 
 .mb-6 { margin-bottom: 1.5rem; }
+.mt-4 { margin-top: 1rem; }
+
+/* Mission Control */
+.mission-grid {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 1.5rem;
+    height: calc(100vh - 200px);
+}
+
+.terminal-view {
+    background: #000;
+    border-radius: 8px;
+    padding: 1rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: #a8b1ff;
+    overflow-y: auto;
+    flex-grow: 1;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.terminal-line {
+    margin-bottom: 0.25rem;
+    line-height: 1.4;
+}
+
+.terminal-line.system { color: #569cd6; }
+.terminal-line.tool { color: #ce9178; font-weight: bold; }
+.terminal-line.error { color: #f44747; }
+
+.status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.status-idle { background: rgba(148, 163, 184, 0.2); color: #94a3b8; }
+.status-active { background: rgba(34, 197, 94, 0.2); color: #22c55e; animation: pulse 2s infinite; }
+
+.change-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.change-item {
+    padding: 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.change-item:last-child { border-bottom: none; }
+
+.change-file {
+    font-size: 0.8rem;
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.change-type {
+    font-size: 0.7rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+}
+
+.type-edit { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+.type-create { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.6; }
+    100% { opacity: 1; }
+}
 
 .agent-card .meta {
     display: flex;

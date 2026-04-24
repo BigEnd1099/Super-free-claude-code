@@ -10,6 +10,7 @@ from .message_converter import (
 )
 from .sse_builder import ContentBlockManager, SSEBuilder, map_stop_reason
 from .think_parser import ContentChunk, ContentType, ThinkTagParser
+from .text import PreambleStripper
 from .utils import set_if_not_none
 
 __all__ = [
@@ -20,6 +21,7 @@ __all__ = [
     "HeuristicToolParser",
     "SSEBuilder",
     "ThinkTagParser",
+    "PreambleStripper",
     "append_request_id",
     "build_base_request_body",
     "get_block_attr",

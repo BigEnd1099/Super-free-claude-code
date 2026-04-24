@@ -182,10 +182,9 @@ class OpenAICompatibleProvider(BaseProvider):
             len(body.get("tools", [])),
         )
 
-        yield sse.message_start()
-
         think_parser = ThinkTagParser()
         heuristic_parser = HeuristicToolParser()
+        stripper = PreambleStripper(enabled=self.config.enable_raw_mode)
         thinking_enabled = self._is_thinking_enabled(request)
 
         finish_reason = None
@@ -195,7 +194,21 @@ class OpenAICompatibleProvider(BaseProvider):
 
         async with self._global_rate_limiter.concurrency_slot():
             try:
-                stream, body = await self._create_stream(body)
+                # Perform initial connection before yielding message_start
+                # to allow the caller to catch immediate errors (401, 429, etc.)
+                try:
+                    stream, body = await self._create_stream(body)
+                except Exception as e:
+                    mapped_e = map_error(e, read_timeout_s=self.config.http_read_timeout)
+                    # For fatal errors that should return a status code, raise immediately
+                    if getattr(mapped_e, "status_code", None) in [401, 403, 429]:
+                        raise mapped_e from e
+                    # For other errors (like timeouts), start the stream and yield the error
+                    yield sse.message_start()
+                    raise # This will be caught by the outer except block below
+
+                yield sse.message_start()
+
                 async for chunk in stream:
                     if getattr(chunk, "usage", None):
                         usage_info = chunk.usage
@@ -244,7 +257,11 @@ class OpenAICompatibleProvider(BaseProvider):
                                 if filtered_text:
                                     for event in sse.ensure_text_block():
                                         yield event
-                                    yield sse.emit_text_delta(filtered_text)
+                                    
+                                    # STM: Strip preambles from text deltas
+                                    stripped_text = stripper.feed(filtered_text)
+                                    if stripped_text:
+                                        yield sse.emit_text_delta(stripped_text)
 
                                 for tool_use in detected_tools:
                                     for event in sse.close_content_blocks():
@@ -286,7 +303,7 @@ class OpenAICompatibleProvider(BaseProvider):
 
             except Exception as e:
                 logger.error("{}_ERROR:{} {}: {}", tag, req_tag, type(e).__name__, e)
-                mapped_e = map_error(e)
+                mapped_e = map_error(e, read_timeout_s=self.config.http_read_timeout)
                 error_occurred = True
                 if getattr(mapped_e, "status_code", None) == 405:
                     base_message = (
@@ -323,6 +340,13 @@ class OpenAICompatibleProvider(BaseProvider):
                 for event in sse.ensure_text_block():
                     yield event
                 yield sse.emit_text_delta(remaining.content)
+        
+        # Flush STM stripper
+        flushed_text = stripper.flush()
+        if flushed_text:
+            for event in sse.ensure_text_block():
+                yield event
+            yield sse.emit_text_delta(flushed_text)
 
         for tool_use in heuristic_parser.flush():
             for event in sse.close_content_blocks():

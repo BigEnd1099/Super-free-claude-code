@@ -143,7 +143,26 @@ class Settings(BaseSettings):
         default=2.0, validation_alias="HTTP_CONNECT_TIMEOUT"
     )
 
-    # ==================== Fast Prefix Detection ====================
+    # ==================== Performance Config ====================
+    # Enable Hyper-Analysis (Uses extra 70B calls for deep accuracy)
+    enable_hyper_analysis: bool = Field(
+        default=True, validation_alias="ENABLE_HYPER_ANALYSIS"
+    )
+
+    # Adversarial Mode (Parseltongue) - Perturb input to bypass filters
+    enable_adversarial_mode: bool = Field(
+        default=False, validation_alias="ENABLE_ADVERSARIAL_MODE"
+    )
+
+    # Raw Mode (STM) - Strip preambles and hedges from outputs
+    enable_raw_mode: bool = Field(default=False, validation_alias="ENABLE_RAW_MODE")
+
+    # Planning Mode (OmX) - Enforce architectural planning before execution
+    enable_planning_mode: bool = Field(
+        default=False, validation_alias="ENABLE_PLANNING_MODE"
+    )
+
+    # Fast path optimizations
     fast_prefix_detection: bool = True
 
     # ==================== Optimizations ====================
@@ -182,8 +201,7 @@ class Settings(BaseSettings):
     claude_workspace: str = "./agent_workspace"
     allowed_dir: str = ""
     skills_dir: str = Field(
-        default=os.path.expanduser("~/.claude/skills"),
-        validation_alias="SKILLS_DIR"
+        default=os.path.expanduser("~/.claude/skills"), validation_alias="SKILLS_DIR"
     )
 
     # ==================== Server ====================

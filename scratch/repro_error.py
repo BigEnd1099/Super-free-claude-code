@@ -1,6 +1,6 @@
-from providers.base import BaseProvider, ProviderConfig
-from providers.nvidia_nim.client import NvidiaNimProvider
 from config.nim import NimSettings
+from providers.base import ProviderConfig
+from providers.nvidia_nim.client import NvidiaNimProvider
 
 config = ProviderConfig(api_key="test")
 nim_settings = NimSettings()

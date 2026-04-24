@@ -34,9 +34,14 @@ def try_prefix_detection(
         return None
 
     logger.info("Optimization: Fast prefix detection request")
+    model_id = (
+        request_data.model
+        if isinstance(request_data.model, str)
+        else request_data.model.get("id", "unknown")
+    )
     return MessagesResponse(
         id=f"msg_{uuid.uuid4()}",
-        model=request_data.model,
+        model=model_id,
         content=[{"type": "text", "text": extract_command_prefix(command)}],
         stop_reason="end_turn",
         usage=Usage(input_tokens=100, output_tokens=5),
@@ -53,9 +58,14 @@ def try_quota_mock(
         return None
 
     logger.info("Optimization: Intercepted and mocked quota probe")
+    model_id = (
+        request_data.model
+        if isinstance(request_data.model, str)
+        else request_data.model.get("id", "unknown")
+    )
     return MessagesResponse(
         id=f"msg_{uuid.uuid4()}",
-        model=request_data.model,
+        model=model_id,
         role="assistant",
         content=[{"type": "text", "text": "Quota check passed."}],
         stop_reason="end_turn",
@@ -73,9 +83,14 @@ def try_title_skip(
         return None
 
     logger.info("Optimization: Skipped title generation request")
+    model_id = (
+        request_data.model
+        if isinstance(request_data.model, str)
+        else request_data.model.get("id", "unknown")
+    )
     return MessagesResponse(
         id=f"msg_{uuid.uuid4()}",
-        model=request_data.model,
+        model=model_id,
         role="assistant",
         content=[{"type": "text", "text": "Conversation"}],
         stop_reason="end_turn",
@@ -93,9 +108,14 @@ def try_suggestion_skip(
         return None
 
     logger.info("Optimization: Skipped suggestion mode request")
+    model_id = (
+        request_data.model
+        if isinstance(request_data.model, str)
+        else request_data.model.get("id", "unknown")
+    )
     return MessagesResponse(
         id=f"msg_{uuid.uuid4()}",
-        model=request_data.model,
+        model=model_id,
         role="assistant",
         content=[{"type": "text", "text": ""}],
         stop_reason="end_turn",
@@ -116,9 +136,14 @@ def try_filepath_mock(
 
     filepaths = extract_filepaths_from_command(cmd, output)
     logger.info("Optimization: Mocked filepath extraction")
+    model_id = (
+        request_data.model
+        if isinstance(request_data.model, str)
+        else request_data.model.get("id", "unknown")
+    )
     return MessagesResponse(
         id=f"msg_{uuid.uuid4()}",
-        model=request_data.model,
+        model=model_id,
         role="assistant",
         content=[{"type": "text", "text": filepaths}],
         stop_reason="end_turn",

@@ -105,7 +105,9 @@ class MessagesRequest(BaseModel):
         """Map any Claude model name to the configured model (model-aware)."""
         settings = get_settings()
         if self.original_model is None:
-            self.original_model = self.model
+            self.original_model = (
+                self.model if isinstance(self.model, str) else self.model.get("id")
+            )
 
         model_id = (
             self.model

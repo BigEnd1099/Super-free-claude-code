@@ -194,6 +194,22 @@ def create_app() -> FastAPI:
     # Register routes
     app.include_router(router)
 
+    # WebSocket for real-time logs
+    from fastapi import WebSocket, WebSocketDisconnect
+
+    @app.websocket("/ws/logs")
+    async def websocket_logs(websocket: WebSocket):
+        from .websockets import manager
+
+        await manager.connect(websocket)
+        try:
+            while True:
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            manager.disconnect(websocket)
+        except Exception:
+            manager.disconnect(websocket)
+
     # Serve static files for the WebUI
     static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
     if os.path.exists(static_dir):

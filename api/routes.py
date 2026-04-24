@@ -5,10 +5,12 @@ import json
 import time
 import traceback
 import uuid
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 import psutil
 import yaml
-from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from loguru import logger
@@ -23,13 +25,16 @@ from .dependencies import (
     get_provider_for_type,
     get_settings,
     require_api_key,
+    update_provider_configs,
 )
 from .models.agents import AgentListResponse, AgentVersionsResponse, CreateAgentRequest
-from .models.skills import SkillInfo, SkillListResponse
 from .models.anthropic import MessagesRequest, TokenCountRequest
 from .models.responses import ModelResponse, ModelsListResponse, TokenCountResponse
+from .models.skills import SkillInfo, SkillListResponse
 from .optimization_handlers import try_optimizations
+from .planning import run_omx_planning
 from .request_utils import get_token_count
+from .telemetry import mission_manager
 
 router = APIRouter()
 
@@ -109,6 +114,171 @@ def _probe_response(allow: str) -> Response:
     return Response(status_code=204, headers={"Allow": allow})
 
 
+# SHADOW INTELLIGENCE ASSETS: Persistent client for connection pooling
+_NIM_CLIENT: Any = None
+
+
+async def get_nim_client(settings: Settings):
+    global _NIM_CLIENT
+    if _NIM_CLIENT is None:
+        import httpx
+
+        from providers.openai_compat import AsyncOpenAI
+
+        # Connection pooling enabled by default in AsyncOpenAI/httpx
+        _NIM_CLIENT = AsyncOpenAI(
+            api_key=settings.nvidia_nim_api_key,
+            base_url="https://integrate.api.nvidia.com/v1",
+            timeout=httpx.Timeout(10.0, connect=2.0),
+        )
+    return _NIM_CLIENT
+
+
+async def run_shadow_intelligence(
+    prompt: str, model: str, settings: Settings
+) -> tuple[str, int]:
+    """Analyze prompt in background using a 70B model with connection pooling. Returns (intel, tokens)."""
+    if not settings.enable_hyper_analysis:
+        return "", 0
+
+    try:
+        client = await get_nim_client(settings)
+
+        # Use the 70B resilient model for intelligence
+        analysis_model = "meta/llama-3.3-70b-instruct"
+
+        logger.info("HYPER_ANALYSIS: Generating shadow intelligence...")
+        response = await client.chat.completions.create(
+            model=analysis_model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are the Antigravity Shadow Intelligence. Provide 3 extremely brief 'Hyper-Insights' (Context, Risk, Strategy) for the given coding task. Max 60 words total.",
+                },
+                {
+                    "role": "user",
+                    "content": prompt[:1000],  # Cap input
+                },
+            ],
+            max_tokens=150,
+            temperature=0.1,
+        )
+
+        intel = response.choices[0].message.content
+        tokens = response.usage.total_tokens if hasattr(response, "usage") else 150
+
+        logger.info(
+            "HYPER_ANALYSIS: Intelligence generated successfully. ({} tokens)", tokens
+        )
+        return (
+            f"\n\n### <MISSION_INTEL_BY_ANTIGRAVITY>\n{intel}\n### </MISSION_INTEL_BY_ANTIGRAVITY>",
+            tokens,
+        )
+    except Exception as e:
+        logger.warning(f"HYPER_ANALYSIS_FAILED: {e}")
+        return "", 0
+
+
+def perturb_prompt(text: str) -> str:
+    """Adversarial Mode (Parseltongue) - Perturb sensitive words to bypass filters."""
+    # Comprehensive homoglyph mapping
+    homoglyphs = {
+        "a": "а",  # cyrillic a
+        "e": "е",  # cyrillic e
+        "i": "і",  # cyrillic i
+        "o": "о",  # cyrillic o
+        "p": "р",  # cyrillic p
+        "c": "с",  # cyrillic c
+        "y": "у",  # cyrillic y
+        "x": "х",  # cyrillic x
+        "s": "ѕ",  # macedonian dze
+        "k": "κ",  # greek kappa
+        "n": "ո",  # armenian o
+        "v": "ν",  # greek nu
+    }
+    # Targeted words that often trigger filters
+    sensitive_words = [
+        "system", "root", "password", "hack", "bypass", "exploit",
+        "secret", "private", "admin", "sudo", "jailbreak", "override",
+        "credential", "token", "auth", "login", "vulnerability",
+    ]
+
+    words = text.split()
+    for i, word in enumerate(words):
+        # Remove punctuation for matching
+        clean_word = "".join(c for c in word.lower() if c.isalnum())
+        if clean_word in sensitive_words:
+            # Replace characters with homoglyphs, preserving original case if no homoglyph exists
+            # Note: The homoglyph map only contains lowercase keys.
+            perturbed = ""
+            for char in word:
+                lower_char = char.lower()
+                if lower_char in homoglyphs:
+                    # We use the lowercase homoglyph for both cases for simplicity,
+                    # as many homoglyphs are visually similar in both cases or
+                    # uppercase equivalents aren't as common in the map.
+                    perturbed += homoglyphs[lower_char]
+                else:
+                    perturbed += char
+            words[i] = perturbed
+
+    return " ".join(words)
+
+
+def strip_preambles(text: str) -> str:
+    """Raw Mode (STM) - Strip hedges and preambles."""
+    preambles = [
+        "Certainly!",
+        "I can help with that.",
+        "I understand.",
+        "Sure thing!",
+        "As an AI,",
+        "I'll be happy to",
+        "Here is",
+        "Let me",
+        "I have",
+    ]
+    cleaned = text
+    for p in preambles:
+        if cleaned.strip().startswith(p):
+            cleaned = cleaned.replace(p, "", 1).strip()
+    return cleaned
+
+
+# =============================================================================
+# Mission Management (Collaborative Intelligence)
+# =============================================================================
+
+
+# Mission Manager imported from .telemetry
+
+
+@router.get("/v1/mission/status")
+async def get_mission_status():
+    return mission_manager.get_status()
+
+
+@router.get("/v1/health/rate-limit")
+async def get_rate_limit_health():
+    from providers.rate_limit import GlobalRateLimiter
+
+    limiter = GlobalRateLimiter.get_instance()
+    return limiter.get_usage_metrics()
+
+
+@router.post("/v1/mission/stop")
+async def stop_missions():
+    """Abort all active missions and reset the mission manager."""
+    mission_manager.active_sessions.clear()
+    mission_manager.change_log.clear()
+    mission_manager.tool_count = 0
+    mission_manager.total_tokens = 0
+    mission_manager.total_cost = 0.0
+    mission_manager.model_stats.clear()
+    logger.info("MISSION_MANAGER: Reset all metrics and sessions.")
+    return {"status": "success", "message": "All missions reset."}
+
+
 # =============================================================================
 # Routes
 # =============================================================================
@@ -126,6 +296,27 @@ async def create_message(
         if not request_data.messages:
             raise InvalidRequestError("messages cannot be empty")
 
+        # MISSION CONTROL: Detect tool results in the request
+        for msg in request_data.messages:
+            if msg.role == "user" and isinstance(msg.content, list):
+                from .models.anthropic import ContentBlockToolResult
+
+                for block in msg.content:
+                    if isinstance(block, ContentBlockToolResult):
+                        import asyncio
+
+                        from .websockets import manager
+
+                        asyncio.create_task(
+                            manager.broadcast(
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": block.tool_use_id,
+                                    "status": "RECEIVED_BY_ARCHITECT",
+                                }
+                            )
+                        )
+
         optimized = try_optimizations(request_data, settings)
         if optimized is not None:
             return optimized
@@ -137,6 +328,22 @@ async def create_message(
                 if agent:
                     logger.info(
                         "AGENT_OVERRIDE: id={} name={}", override, agent["name"]
+                    )
+
+                    # Broadcast Orchestration Event
+                    import asyncio
+
+                    from .websockets import manager
+
+                    asyncio.create_task(
+                        manager.broadcast(
+                            {
+                                "type": "orchestration",
+                                "agent": agent["name"],
+                                "action": "INJECT_PERSONA",
+                                "status": "SUCCESS",
+                            }
+                        )
                     )
 
                     # Inject callable agents as tools
@@ -152,14 +359,14 @@ async def create_message(
                             tool_name = f"call_agent_{ca_id.replace('agent_', '')}"
 
                             # Check if tool already exists
-                            if not any(
-                                t.get("name") == tool_name for t in request_data.tools
-                            ):
+                            if not any(t.name == tool_name for t in request_data.tools):
+                                from .models.anthropic import Tool
+
                                 request_data.tools.append(
-                                    {
-                                        "name": tool_name,
-                                        "description": f"Call specialized agent: {ca_name}. Use this for tasks requiring {ca_name}'s expertise.",
-                                        "input_schema": {
+                                    Tool(
+                                        name=tool_name,
+                                        description=f"Call specialized agent: {ca_name}. Use this for tasks requiring {ca_name}'s expertise.",
+                                        input_schema={
                                             "type": "object",
                                             "properties": {
                                                 "prompt": {
@@ -169,7 +376,7 @@ async def create_message(
                                             },
                                             "required": ["prompt"],
                                         },
-                                    }
+                                    )
                                 )
                                 agent_tools_desc.append(f"- {tool_name}: {ca_name}")
 
@@ -216,6 +423,78 @@ async def create_message(
 
         # Resolve provider from the model-aware mapping
         resolved_model = request_data.resolved_provider_model or settings.model
+
+        # HYPER-ANALYSIS: Shadow Intelligence Phase
+        if settings.enable_hyper_analysis and request_data.messages:
+            last_msg = request_data.messages[-1].content
+            prompt_text = ""
+            if isinstance(last_msg, str):
+                prompt_text = last_msg
+            elif isinstance(last_msg, list):
+                for block in last_msg:
+                    if getattr(block, "type", None) == "text":
+                        prompt_text += getattr(block, "text", "")
+                    elif isinstance(block, dict) and block.get("type") == "text":
+                        prompt_text += block.get("text", "")
+
+            if prompt_text:
+                shadow_intel, shadow_tokens = await run_shadow_intelligence(
+                    prompt_text, resolved_model, settings
+                )
+                if shadow_intel:
+                    mission_manager.log_tokens(shadow_tokens, model="llama-3.3-70b", request_id=request_id if 'request_id' in locals() else None)
+                    if isinstance(request_data.system, str):
+                        request_data.system += shadow_intel
+                    elif isinstance(request_data.system, list):
+                        from .models.anthropic import SystemContent
+
+                        request_data.system.append(
+                            SystemContent(type="text", text=shadow_intel)
+                        )
+
+        # OmX: Structured Architectural Planning Phase
+        if settings.enable_planning_mode and request_data.messages:
+            last_msg = request_data.messages[-1].content
+            prompt_text = ""
+            if isinstance(last_msg, str):
+                prompt_text = last_msg
+            elif isinstance(last_msg, list):
+                for block in last_msg:
+                    if getattr(block, "type", None) == "text":
+                        prompt_text += getattr(block, "text", "")
+                    elif isinstance(block, dict) and block.get("type") == "text":
+                        prompt_text += block.get("text", "")
+
+            if prompt_text:
+                nim_client = await get_nim_client(settings)
+                omx_plan, omx_tokens = await run_omx_planning(
+                    prompt_text, resolved_model, settings, nim_client=nim_client
+                )
+                if omx_plan:
+                    mission_manager.log_tokens(omx_tokens, model="llama-3.3-70b", request_id=request_id if 'request_id' in locals() else None)
+                    if isinstance(request_data.system, str):
+                        request_data.system += omx_plan
+                    elif isinstance(request_data.system, list):
+                        from .models.anthropic import SystemContent
+
+                        request_data.system.append(
+                            SystemContent(type="text", text=omx_plan)
+                        )
+                    else:
+                        request_data.system = omx_plan
+
+        # Adversarial Mode: Perturb User Messages
+        if settings.enable_adversarial_mode:
+            for msg in request_data.messages:
+                if msg.role == "user":
+                    if isinstance(msg.content, str):
+                        msg.content = perturb_prompt(msg.content)
+                    elif isinstance(msg.content, list):
+                        for block in msg.content:
+                            if getattr(block, "type", None) == "text":
+                                block.text = perturb_prompt(block.text)
+                            elif isinstance(block, dict) and block.get("type") == "text":
+                                block["text"] = perturb_prompt(block["text"])
         if "/" not in resolved_model:
             logger.warning(
                 "MODEL_WITHOUT_PROVIDER: model={} - defaulting to nvidia_nim",
@@ -238,19 +517,86 @@ async def create_message(
         from providers.resilience import with_resilient_stream
 
         request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+        # MISSION CONTROL: Start session
+        mission_manager.start_session(request_id, resolved_model)
+
         logger.info(
             "API_REQUEST: request_id={} model={} messages={}",
             request_id,
             request_data.model,
             len(request_data.messages),
         )
-        logger.debug("FULL_PAYLOAD [{}]: {}", request_id, request_data.model_dump())
 
         input_tokens = get_token_count(
             request_data.messages, request_data.system, request_data.tools
         )
+        mission_manager.log_tokens(input_tokens, model=resolved_model, request_id=request_id)
 
-        return StreamingResponse(
+        import asyncio
+
+        from .websockets import manager
+
+        asyncio.create_task(
+            manager.broadcast(
+                {
+                    "type": "traffic",
+                    "method": "POST",
+                    "path": "/v1/messages",
+                    "model": resolved_model,
+                    "tokens": input_tokens,
+                    "status": "STREAMING",
+                    "request_id": request_id,
+                }
+            )
+        )
+
+        # NEURAL SELF-CORRECTION LOOP
+        # This wrapper allows the proxy to intercept tool calls and potentially
+        # auto-retry if specific patterns are detected (e.g. sub-agent failure)
+        async def recursive_telemetry_wrapper(gen):
+            """Intercept tool calls and execute internal tools (Stress Test)."""
+            try:
+                active_tool_call = None
+                async for chunk in gen:
+                    # Mission Control pulse
+                    # OPTIMIZATION: Only parse JSON if the chunk contains specific neural markers
+                    if (
+                        '"type": "tool_use"' in chunk
+                        or '"type": "message_stop"' in chunk
+                    ):
+                        try:
+                            data_str = chunk.split("data: ", 1)[1]
+                            data = json.loads(data_str)
+
+                            # Handle tool use
+                            if (
+                                data.get("type") == "content_block_start"
+                                and data.get("content_block", {}).get("type")
+                                == "tool_use"
+                            ):
+                                active_tool_call = data["content_block"]
+                                mission_manager.log_tool(
+                                    request_id,
+                                    active_tool_call["name"],
+                                    active_tool_call.get("input", {}),
+                                )
+
+                            # Handle usage/tokens
+                            if data.get("type") == "message_stop":
+                                usage = data.get("message", {}).get("usage", {})
+                                if usage.get("output_tokens"):
+                                    mission_manager.log_tokens(usage["output_tokens"], model=resolved_model, request_id=request_id)
+                        except Exception:
+                            pass
+                    yield chunk
+            finally:
+                # CRITICAL: Always end session to prevent 'Ghost Sessions'
+                mission_manager.end_session(request_id)
+
+        # Priming: Get the first chunk to catch immediate errors (401, 429, etc.)
+        # before the StreamingResponse starts and sends 200 OK headers.
+        full_gen = recursive_telemetry_wrapper(
             with_resilient_stream(
                 provider.stream_response,
                 request_data,
@@ -259,7 +605,31 @@ async def create_message(
                 fallback_func=fallback_provider.stream_response
                 if fallback_provider
                 else None,
-            ),
+            )
+        )
+
+        try:
+            # We use __aiter__() and __anext__() to manually pull the first chunk.
+            # This will execute code up to the first 'yield' in the provider.
+            iterator = full_gen.__aiter__()
+            first_chunk = await iterator.__anext__()
+        except StopAsyncIteration:
+            # Handle empty stream case
+            return StreamingResponse(
+                iter([]),
+                media_type="text/event-stream",
+            )
+        except Exception:
+            # Re-raise to be caught by the outer except blocks and return correct status code
+            raise
+
+        async def combined_generator():
+            yield first_chunk
+            async for chunk in iterator:
+                yield chunk
+
+        return StreamingResponse(
+            combined_generator(),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
@@ -268,7 +638,23 @@ async def create_message(
             },
         )
 
-    except ProviderError:
+    except ProviderError as e:
+        # MISSION CONTROL: Broadcast failure
+        import asyncio
+
+        from .websockets import manager
+
+        asyncio.create_task(
+            manager.broadcast(
+                {
+                    "type": "tool_use",
+                    "tool": "PROVIDER_SYSTEM",
+                    "status": "INTERCEPTED_FAILURE",
+                    "error": str(e),
+                    "request_id": request_id if "request_id" in locals() else "unknown",
+                }
+            )
+        )
         raise
     except Exception as e:
         logger.error(f"Error: {e!s}\n{traceback.format_exc()}")
@@ -324,16 +710,64 @@ async def root(
     settings: Settings = Depends(get_settings), _auth=Depends(require_api_key)
 ):
     """Root endpoint."""
+    active_model = settings.model
+    if mission_manager.active_sessions:
+        # Use the model of the most recently started active session
+        latest_session = list(mission_manager.active_sessions.values())[-1]
+        active_model = latest_session.get("model", active_model)
+
     return {
         "status": "ok",
         "provider": settings.provider_type,
-        "model": settings.model,
+        "model": active_model,
         "mapping": {
             "opus": settings.model_opus,
             "sonnet": settings.model_sonnet,
             "haiku": settings.model_haiku,
         },
+        "settings": {
+            "hyper_analysis": settings.enable_hyper_analysis,
+            "thinking": settings.enable_thinking,
+            "adversarial": settings.enable_adversarial_mode,
+            "raw_mode": settings.enable_raw_mode,
+            "planning": settings.enable_planning_mode,
+        },
         "ui": "/ui",
+    }
+
+
+@router.post("/v1/config")
+async def update_config(
+    payload: dict,
+    settings: Settings = Depends(get_settings),
+    _auth=Depends(require_api_key),
+):
+    """Update global settings dynamically."""
+    if "hyper_analysis" in payload:
+        settings.enable_hyper_analysis = bool(payload["hyper_analysis"])
+
+    if "thinking" in payload:
+        settings.enable_thinking = bool(payload["thinking"])
+
+    if "adversarial" in payload:
+        settings.enable_adversarial_mode = bool(payload["adversarial"])
+
+    if "raw_mode" in payload:
+        settings.enable_raw_mode = bool(payload["raw_mode"])
+
+    if "planning" in payload:
+        settings.enable_planning_mode = bool(payload["planning"])
+
+    update_provider_configs(settings)
+    return {
+        "status": "success",
+        "settings": {
+            "hyper_analysis": settings.enable_hyper_analysis,
+            "thinking": settings.enable_thinking,
+            "adversarial": settings.enable_adversarial_mode,
+            "raw_mode": settings.enable_raw_mode,
+            "planning": settings.enable_planning_mode,
+        },
     }
 
 
@@ -455,7 +889,9 @@ async def list_agent_versions(agent_id: str, _auth=Depends(require_api_key)):
     versions = agents_db.get_agent_versions(agent_id)
     if versions is None:
         raise HTTPException(status_code=404, detail="Agent not found")
-    return AgentVersionsResponse(data=versions)
+    from .models.agents import Agent
+
+    return AgentVersionsResponse(data=[Agent(**v) for v in versions])
 
 
 @router.post("/agents/{agent_id}/archive")
@@ -469,7 +905,9 @@ async def archive_agent(agent_id: str, _auth=Depends(require_api_key)):
 
 
 @router.get("/v1/skills", response_model=SkillListResponse)
-async def list_skills(settings: Settings = Depends(get_settings), _auth=Depends(require_api_key)):
+async def list_skills(
+    settings: Settings = Depends(get_settings), _auth=Depends(require_api_key)
+):
     """List available skills from the configured skills directory."""
     skills_path = Path(settings.skills_dir)
     if not skills_path.exists():
@@ -486,11 +924,11 @@ async def list_skills(settings: Settings = Depends(get_settings), _auth=Depends(
             if item.is_dir() and item.name not in processed:
                 skill_id = item.name
                 skill_md = item / "SKILL.md"
-                
+
                 name = skill_id
                 description = None
                 version = None
-                
+
                 if skill_md.exists():
                     try:
                         content = skill_md.read_text(encoding="utf-8")
@@ -505,18 +943,22 @@ async def list_skills(settings: Settings = Depends(get_settings), _auth=Depends(
                                     version = meta.get("version")
                     except Exception as e:
                         logger.debug(f"Error parsing {skill_md}: {e}")
-                
-                skills.append(SkillInfo(
-                    id=skill_id,
-                    name=name,
-                    description=description,
-                    path=str(item),
-                    version=version
-                ))
+
+                skills.append(
+                    SkillInfo(
+                        id=skill_id,
+                        name=name,
+                        description=description,
+                        path=str(item),
+                        version=version,
+                    )
+                )
                 processed.add(skill_id)
     except Exception as e:
         logger.error(f"Error scanning skills: {e}")
-        raise HTTPException(status_code=500, detail="Failed to scan skills directory")
+        raise HTTPException(
+            status_code=500, detail="Failed to scan skills directory"
+        ) from None
 
     return SkillListResponse(data=skills)
 

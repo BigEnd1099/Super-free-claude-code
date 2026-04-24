@@ -39,6 +39,10 @@ A lightweight proxy that routes Claude Code's Anthropic API calls to **NVIDIA NI
 | **Smart Rate Limiting**    | Proactive rolling-window throttle + reactive 429 exponential backoff + optional concurrency cap |
 | **Discord / Telegram Bot** | Remote autonomous coding with tree-based threading, session persistence, and live progress      |
 | **Subagent Control**       | Task tool interception forces `run_in_background=False`. No runaway subagents                   |
+| **OmX Planning**           | Structured Architectural Planning mode. Generates a strategic plan before task execution.       |
+| **Parseltongue**           | Adversarial Input Perturbation. Homoglyph mapping to bypass provider-side safety filters.       |
+| **STM (Raw Mode)**         | Semantic Output Normalization. Strips AI preambles ("Certainly!") for a cleaner tool-like feel. |
+| **Power Launcher**         | Advanced PowerShell wrapper (`cf`) with interactive GUI, status, and dynamic config syncing.    |
 | **Extensible**             | Clean `BaseProvider` and `MessagingPlatform` ABCs. Add new providers or platforms easily        |
 
 ## Quick Start
@@ -241,6 +245,17 @@ The `cf.ps1` script is a professional PowerShell wrapper that streamlines your w
 | `cf -Pick` | Open the interactive GUI to select a Model or Agent. |
 | `cf -m <model>` | Launch directly with a specific model (e.g., `cf -m glm-5.1`). |
 | `cf -a <id>` | Launch with a specific Managed Agent (e.g., `cf -a st_modding`). |
+| `cf -s` | Fetch real-time **Mission Status** (Tokens, Cost, Active Sessions). |
+| `cf -r` | **Reset** all active missions and telemetry metrics. |
+| `cf -cfg k:v` | Update **Dynamic Settings** (e.g., `cf -cfg planning:on`). |
+| `cf -h` | Show the professional **Help Menu**. |
+
+### Intelligence Augmentation
+Enable these layers via `cf -cfg <layer>:on` or in your `.env`:
+- **Planning (`planning`)**: Enables OmX Architectural Planning.
+- **Adversarial (`adversarial`)**: Enables Parseltongue prompt perturbation.
+- **Raw Mode (`raw_mode`)**: Enables STM Preamble Stripping.
+- **Thinking (`thinking`)**: Enables/Disables neural thinking visibility.
 
 ### Setup Alias
 Add this to your PowerShell `$PROFILE` to use `cf` from any folder:

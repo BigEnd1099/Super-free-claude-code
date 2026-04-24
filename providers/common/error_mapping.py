@@ -61,9 +61,9 @@ def append_request_id(message: str, request_id: str | None) -> str:
     return base
 
 
-def map_error(e: Exception) -> Exception:
+def map_error(e: Exception, *, read_timeout_s: float | None = None) -> Exception:
     """Map OpenAI or HTTPX exception to specific ProviderError."""
-    message = get_user_facing_error_message(e)
+    message = get_user_facing_error_message(e, read_timeout_s=read_timeout_s)
 
     # Map OpenAI Specific Errors
     if isinstance(e, openai.AuthenticationError):
@@ -79,6 +79,8 @@ def map_error(e: Exception) -> Exception:
         if "overloaded" in raw_message.lower() or "capacity" in raw_message.lower():
             return OverloadedError(message, raw_error=raw_message)
         return APIError(message, status_code=500, raw_error=str(e))
+    if isinstance(e, openai.APITimeoutError):
+        return APIError(message, status_code=504, raw_error=str(e))
     if isinstance(e, openai.APIError):
         return APIError(
             message, status_code=getattr(e, "status_code", 500), raw_error=str(e)
@@ -99,5 +101,8 @@ def map_error(e: Exception) -> Exception:
                 return OverloadedError(message, raw_error=str(e))
             return APIError(message, status_code=status, raw_error=str(e))
         return APIError(message, status_code=status, raw_error=str(e))
+
+    if isinstance(e, httpx.TimeoutException):
+        return APIError(message, status_code=504, raw_error=str(e))
 
     return e

@@ -57,6 +57,7 @@ def _create_provider_for_type(provider_type: str, settings: Settings) -> BasePro
             http_write_timeout=settings.http_write_timeout,
             http_connect_timeout=settings.http_connect_timeout,
             enable_thinking=settings.enable_thinking,
+            enable_raw_mode=settings.enable_raw_mode,
             proxy=proxy,
         )
         return NvidiaNimProvider(config, nim_settings=settings.nim)
@@ -76,6 +77,7 @@ def _create_provider_for_type(provider_type: str, settings: Settings) -> BasePro
             http_write_timeout=settings.http_write_timeout,
             http_connect_timeout=settings.http_connect_timeout,
             enable_thinking=settings.enable_thinking,
+            enable_raw_mode=settings.enable_raw_mode,
             proxy=proxy,
         )
         return OpenRouterProvider(config)
@@ -95,6 +97,7 @@ def _create_provider_for_type(provider_type: str, settings: Settings) -> BasePro
             http_write_timeout=settings.http_write_timeout,
             http_connect_timeout=settings.http_connect_timeout,
             enable_thinking=settings.enable_thinking,
+            enable_raw_mode=settings.enable_raw_mode,
         )
         return DeepSeekProvider(config)
     if provider_type == "lmstudio":
@@ -108,6 +111,7 @@ def _create_provider_for_type(provider_type: str, settings: Settings) -> BasePro
             http_write_timeout=settings.http_write_timeout,
             http_connect_timeout=settings.http_connect_timeout,
             enable_thinking=settings.enable_thinking,
+            enable_raw_mode=settings.enable_raw_mode,
             proxy=proxy,
         )
         return LMStudioProvider(config)
@@ -122,6 +126,7 @@ def _create_provider_for_type(provider_type: str, settings: Settings) -> BasePro
             http_write_timeout=settings.http_write_timeout,
             http_connect_timeout=settings.http_connect_timeout,
             enable_thinking=settings.enable_thinking,
+            enable_raw_mode=settings.enable_raw_mode,
             proxy=proxy,
         )
         return LlamaCppProvider(config)
@@ -153,6 +158,40 @@ def get_provider_for_type(provider_type: str) -> BaseProvider:
     return _providers[provider_type]
 
 
+def update_provider_configs(settings: Settings) -> None:
+    """Update the configuration of all cached providers dynamically."""
+    global _providers
+    for provider_type, provider in _providers.items():
+        try:
+            # Re-create config from current settings
+            _proxy_map = {
+                "nvidia_nim": _get_proxy_value(settings, "nvidia_nim_proxy"),
+                "open_router": _get_proxy_value(settings, "open_router_proxy"),
+                "lmstudio": _get_proxy_value(settings, "lmstudio_proxy"),
+                "llamacpp": _get_proxy_value(settings, "llamacpp_proxy"),
+            }
+            proxy = _proxy_map.get(provider_type, "")
+
+            new_config = ProviderConfig(
+                api_key=provider.config.api_key,  # Keep existing API key
+                base_url=provider.config.base_url,
+                rate_limit=settings.provider_rate_limit,
+                rate_window=settings.provider_rate_window,
+                max_concurrency=settings.provider_max_concurrency,
+                http_read_timeout=settings.http_read_timeout,
+                http_write_timeout=settings.http_write_timeout,
+                http_connect_timeout=settings.http_connect_timeout,
+                enable_thinking=settings.enable_thinking,
+                enable_raw_mode=settings.enable_raw_mode,
+                proxy=proxy,
+            )
+            # Use setter if we want to be clean, but direct access for now as BaseProvider is simple
+            provider._config = new_config
+            logger.info("Provider config updated: {}", provider_type)
+        except Exception as e:
+            logger.warning("Failed to update config for provider {}: {}", provider_type, e)
+
+
 def require_api_key(
     request: Request, settings: Settings = Depends(get_settings)
 ) -> None:
@@ -164,19 +203,26 @@ def require_api_key(
     # Localhost bypass for dashboard/monitoring
     host = request.client.host if request.client else ""
     is_local = host in ("127.0.0.1", "::1", "localhost")
-    
     # Allow GET/HEAD to monitoring and agent metadata routes from localhost
     path = request.url.path
     is_safe_method = request.method in ("GET", "HEAD")
     is_safe_path = (
-        path in ("/", "/pulse", "/health", "/v1/health", "/v1/skills") or 
-        path.startswith("/agents") or 
-        path.startswith("/v1/agents")
+        path
+        in (
+            "/",
+            "/pulse",
+            "/health",
+            "/v1/health",
+            "/v1/skills",
+            "/v1/mission/status",
+            "/ws/logs",
+        )
+        or path.startswith("/agents")
+        or path.startswith("/v1/agents")
     )
-    
     if is_local and is_safe_method and is_safe_path:
         return
-        
+
     anthropic_auth_token = settings.anthropic_auth_token
     if not anthropic_auth_token:
         # No API key configured -> allow

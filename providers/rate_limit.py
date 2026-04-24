@@ -162,6 +162,20 @@ class GlobalRateLimiter:
         """Get remaining reactive wait time in seconds."""
         return max(0.0, self._blocked_until - time.monotonic())
 
+    def get_usage_metrics(self) -> dict[str, Any]:
+        """Get current usage metrics for the rolling window."""
+        now = time.monotonic()
+        cutoff = now - self._rate_window
+        # Count requests in the current window
+        current_count = sum(1 for t in self._request_times if t > cutoff)
+        return {
+            "current_usage": current_count,
+            "rate_limit": self._rate_limit,
+            "rate_window": self._rate_window,
+            "is_blocked": self.is_blocked(),
+            "remaining_wait": self.remaining_wait(),
+        }
+
     @asynccontextmanager
     async def concurrency_slot(self) -> AsyncIterator[None]:
         """Async context manager that holds one concurrency slot for a stream.
