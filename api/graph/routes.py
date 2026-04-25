@@ -16,7 +16,7 @@ router = APIRouter()
 _engine = None
 
 
-def get_engine(settings: Settings):
+def get_engine(settings: Settings) -> GraphifyEngine:
     global _engine
     if _engine is None:
         # Check environment variable for root, fallback to CWD
@@ -37,7 +37,7 @@ def get_engine(settings: Settings):
 @router.get("/v1/graph/project")
 async def get_project_root(settings: Settings = Depends(get_settings)):
     """Get the active project root."""
-    engine = get_engine(settings)
+    engine: GraphifyEngine = get_engine(settings)
     return {"path": str(engine.root_path)}
 
 
@@ -74,7 +74,7 @@ async def scan_codebase(settings: Settings = Depends(get_settings)):
     """Trigger a full scan of the codebase and return the graph data."""
     import anyio
 
-    engine = get_engine(settings)
+    engine: GraphifyEngine = get_engine(settings)
     try:
         # Ensure we are scanning the latest root
         scan_func: Callable = engine.scan
@@ -91,7 +91,7 @@ async def scan_codebase(settings: Settings = Depends(get_settings)):
 @router.get("/v1/graph/data")
 async def get_graph_data(settings: Settings = Depends(get_settings)):
     """Returns the most recent graph data without rescanning."""
-    engine = get_engine(settings)
+    engine: GraphifyEngine = get_engine(settings)
     if not engine.nodes:
         return await scan_codebase(settings)
     return {"nodes": engine.nodes, "edges": engine.edges}
@@ -104,7 +104,7 @@ async def get_graph_report(settings: Settings = Depends(get_settings)):
 
     from .report_generator import GraphReportGenerator
 
-    engine = get_engine(settings)
+    engine: GraphifyEngine = get_engine(settings)
     if not engine.nodes:
         await scan_codebase(settings)
 
