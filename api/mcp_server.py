@@ -11,10 +11,12 @@ try:
     from api.telemetry import mission_manager
     from config.settings import get_settings
 except ImportError:
-    # If run directly as python api/mcp_server.py
-    from telemetry import mission_manager
-
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    # If run directly, ensure proper path setup
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    try:
+        from telemetry import mission_manager
+    except ImportError:
+        from api.telemetry import mission_manager
     from config.settings import get_settings
 
 # Ensure logs go to stderr so they don't corrupt the MCP stdout stream
@@ -98,7 +100,7 @@ async def update_settings(key: str, value: str) -> str:
 @mcp.resource("config://current")
 def get_current_config() -> str:
     """Read the current active engine intelligence configuration."""
-    return str(settings.dict())
+    return str(settings.model_dump())
 
 
 if __name__ == "__main__":

@@ -13,12 +13,10 @@ class ModelRouter:
     def route(self, task_type: str, payload: dict) -> str:
         """Determines the best model for the given task and payload."""
 
-        # 1. Background Task Demotion
         if task_type in ["background", "metadata", "graph_scan"]:
             logger.info(f"ROUTER: Demoting {task_type} to Flash/Haiku")
             return self.settings.model_haiku or "gemini-1.5-flash"
 
-        # 2. Planning vs Execution
         is_planning = (
             payload.get("metadata", {}).get("mode") == "planning"
             or "plan" in str(payload.get("messages", [])[-1].get("content", "")).lower()
@@ -26,10 +24,13 @@ class ModelRouter:
 
         if is_planning and self.settings.enable_planning_mode:
             logger.info("ROUTER: Routing planning task to High-Tier (Opus/Sonnet)")
-            return self.settings.model_opus or self.settings.model_sonnet
+            return (
+                self.settings.model_opus
+                or self.settings.model_sonnet
+                or "claude-3-opus"
+            )
 
-        # 3. Default to Sonnet for standard tasks
-        return self.settings.model_sonnet or self.settings.model
+        return self.settings.model_sonnet or self.settings.model or "claude-3-sonnet"
 
     def track_usage(self, model: str, tokens: int):
         """Tracks token usage for quota-aware scheduling."""

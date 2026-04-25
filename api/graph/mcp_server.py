@@ -1,8 +1,7 @@
 from typing import Any
 
 import networkx as nx
-from mcp.server import Server
-from mcp.server.fastapi import Context
+from mcp.server.fastmcp import FastMCP
 
 
 class GraphMCPServer:
@@ -10,12 +9,12 @@ class GraphMCPServer:
 
     def __init__(self, engine: Any):
         self.engine = engine
-        self.server = Server("graphify-mcp")
+        self.server = FastMCP("graphify-mcp")
         self._setup_tools()
 
     def _setup_tools(self):
         @self.server.tool()
-        async def query_graph(query: str, ctx: Context) -> dict:
+        async def query_graph(query: str) -> dict:
             """Searches the knowledge graph for nodes matching the query."""
             q = query.lower()
             results = [
@@ -26,7 +25,7 @@ class GraphMCPServer:
             return {"results": results[:20]}
 
         @self.server.tool()
-        async def get_node_context(node_id: str, ctx: Context) -> dict:
+        async def get_node_context(node_id: str) -> dict:
             """Returns the neighbors and connections for a specific node."""
             G = self.engine.get_networkx_graph()
             if node_id not in G:
@@ -46,7 +45,7 @@ class GraphMCPServer:
             return {"node": {"id": node_id, **G.nodes[node_id]}, "neighbors": neighbors}
 
         @self.server.tool()
-        async def get_shortest_path(source: str, target: str, ctx: Context) -> dict:
+        async def get_shortest_path(source: str, target: str) -> dict:
             """Finds the shortest architectural path between two components."""
             G = self.engine.get_networkx_graph().to_undirected()
             if source not in G or target not in G:
@@ -57,6 +56,3 @@ class GraphMCPServer:
                 return {"path": path}
             except nx.NetworkXNoPath:
                 return {"error": "No path found."}
-
-    def get_router(self):
-        return self.server.create_router()
