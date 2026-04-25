@@ -198,6 +198,10 @@ class Settings(BaseSettings):
     allowed_discord_channels: str | None = Field(
         default=None, validation_alias="ALLOWED_DISCORD_CHANNELS"
     )
+    # ==================== Graphify Config ====================
+    graphify_exclude_dirs: list[str] | None = Field(
+        default=None, validation_alias="GRAPHIFY_EXCLUDE_DIRS"
+    )
     claude_workspace: str = "./agent_workspace"
     allowed_dir: str = ""
     skills_dir: str = Field(
