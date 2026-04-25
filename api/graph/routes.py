@@ -22,12 +22,14 @@ def get_engine(settings: Settings):
         env_root = os.environ.get("GRAPHIFY_ROOT")
         root = Path(env_root) if env_root and os.path.exists(env_root) else Path.cwd()
 
-        exclude = (
+        exclude: list[str] | None = (
             settings.graphify_exclude_dirs
             if hasattr(settings, "graphify_exclude_dirs")
             else None
         )
-        _engine = GraphifyEngine(root, exclude_dirs=exclude or [])
+        _engine = GraphifyEngine(
+            root, exclude_dirs=exclude if exclude is not None else []
+        )
         # Pre-populate with a single node to avoid infinite scan loops
         _engine.nodes = [
             {"id": "root", "label": "Project Sync Pending", "group": "module"}
@@ -49,14 +51,16 @@ async def set_project_root(payload: dict, settings: Settings = Depends(get_setti
     new_path = payload.get("path")
     if new_path and os.path.exists(new_path):
         root = Path(new_path)
-        exclude = (
+        exclude: list[str] | None = (
             settings.graphify_exclude_dirs
             if hasattr(settings, "graphify_exclude_dirs")
             else None
         )
         # If the path changed, recreate the engine
         if _engine is None or _engine.root_path != root:
-            _engine = GraphifyEngine(root, exclude_dirs=exclude or [])
+            _engine = GraphifyEngine(
+                root, exclude_dirs=exclude if exclude is not None else []
+            )
             logger.info(f"GRAPHIFY: Project root updated to {root}")
 
             # Also update skill loader root and reload

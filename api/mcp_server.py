@@ -13,10 +13,7 @@ try:
 except ImportError:
     # If run directly, ensure proper path setup
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    try:
-        from api.telemetry import mission_manager
-    except ImportError:
-        from telemetry import mission_manager
+    from api.telemetry import mission_manager
     from config.settings import get_settings
 
 # Ensure logs go to stderr so they don't corrupt the MCP stdout stream
