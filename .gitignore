@@ -11,3 +11,8 @@ agent_workspace
 *.log
 .coverage
 llama_cache
+references/
+frontend/
+node_modules/
+dist/
+build/
