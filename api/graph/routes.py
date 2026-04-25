@@ -79,7 +79,7 @@ async def scan_codebase(settings: Settings = Depends(get_settings)):
     try:
         # Ensure we are scanning the latest root
         scan_method: Callable[[], Any] = engine.scan
-        data: Any = await anyio.to_thread.run_sync(scan_method)
+        data: Any = await anyio.to_thread.run_sync(scan_method)  # type: ignore
         logger.info(
             f"GRAPHIFY: Scan completed for {engine.root_path} with {len(data['nodes'])} nodes."
         )
@@ -111,5 +111,5 @@ async def get_graph_report(settings: Settings = Depends(get_settings)):
 
     generator = GraphReportGenerator(engine.get_networkx_graph(), engine.root_path)
     generate_method: Callable[[], Any] = generator.generate
-    report_content: Any = await anyio.to_thread.run_sync(generate_method)
+    report_content: Any = await anyio.to_thread.run_sync(generate_method)  # type: ignore
     return {"report": report_content}
