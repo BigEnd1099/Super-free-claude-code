@@ -1,7 +1,9 @@
-from mcp.server.fastapi import Context
-from mcp.server import Server
 from typing import Any
+
 import networkx as nx
+from mcp.server import Server
+from mcp.server.fastapi import Context
+
 
 class GraphMCPServer:
     """Exposes the codebase knowledge graph via MCP tools."""
@@ -15,11 +17,12 @@ class GraphMCPServer:
         @self.server.tool()
         async def query_graph(query: str, ctx: Context) -> dict:
             """Searches the knowledge graph for nodes matching the query."""
-            results = []
             q = query.lower()
-            for node in self.engine.nodes:
-                if q in node.get("label", "").lower() or q in node["id"].lower():
-                    results.append(node)
+            results = [
+                node
+                for node in self.engine.nodes
+                if q in node.get("label", "").lower() or q in node["id"].lower()
+            ]
             return {"results": results[:20]}
 
         @self.server.tool()
@@ -28,20 +31,19 @@ class GraphMCPServer:
             G = self.engine.get_networkx_graph()
             if node_id not in G:
                 return {"error": f"Node {node_id} not found."}
-            
+
             neighbors = []
             for n in G.neighbors(node_id):
                 edge_data = G.get_edge_data(node_id, n)
-                neighbors.append({
-                    "id": n,
-                    "label": G.nodes[n].get("label", n),
-                    "relation": edge_data.get("label", "unknown")
-                })
-            
-            return {
-                "node": {"id": node_id, **G.nodes[node_id]},
-                "neighbors": neighbors
-            }
+                neighbors.append(
+                    {
+                        "id": n,
+                        "label": G.nodes[n].get("label", n),
+                        "relation": edge_data.get("label", "unknown"),
+                    }
+                )
+
+            return {"node": {"id": node_id, **G.nodes[node_id]}, "neighbors": neighbors}
 
         @self.server.tool()
         async def get_shortest_path(source: str, target: str, ctx: Context) -> dict:
@@ -49,7 +51,7 @@ class GraphMCPServer:
             G = self.engine.get_networkx_graph().to_undirected()
             if source not in G or target not in G:
                 return {"error": "Source or target node not found."}
-            
+
             try:
                 path = nx.shortest_path(G, source, target)
                 return {"path": path}

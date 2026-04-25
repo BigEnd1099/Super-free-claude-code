@@ -155,8 +155,8 @@ class OpenAICompatibleProvider(BaseProvider):
         request_id: str | None = None,
     ) -> AsyncIterator[str]:
         """Stream response in Anthropic SSE format."""
-        #with logger.contextualize(request_id=request_id):
-        # We avoid using logger.contextualize() here because it can cause ContextVar errors 
+        # with logger.contextualize(request_id=request_id):
+        # We avoid using logger.contextualize() here because it can cause ContextVar errors
         # when an AsyncIterator is consumed across different AnyIO tasks (common in FastAPI).
         async for event in self._stream_response_impl(
             request, input_tokens, request_id

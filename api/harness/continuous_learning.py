@@ -1,20 +1,22 @@
 import json
 import os
-from typing import Dict, List, Any, Optional
+from typing import Any
+
 from loguru import logger
+
 
 class InstinctManager:
     """Manages 'Instincts' - learned patterns from successful behaviors."""
 
     def __init__(self, storage_path: str = "data/instincts.json"):
         self.storage_path = storage_path
-        self.instincts: Dict[str, Any] = {}
+        self.instincts: dict[str, Any] = {}
         self._load()
 
     def _load(self):
         if os.path.exists(self.storage_path):
             try:
-                with open(self.storage_path, "r") as f:
+                with open(self.storage_path) as f:
                     self.instincts = json.load(f)
             except Exception as e:
                 logger.error(f"Failed to load instincts: {e}")
@@ -32,17 +34,21 @@ class InstinctManager:
         logger.info(f"INSTINCT: Learning pattern '{pattern_key}'")
         self.instincts[pattern_key] = {
             "behavior": behavior,
-            "success_count": self.instincts.get(pattern_key, {}).get("success_count", 0) + 1,
-            "last_updated": os.path.getmtime(self.storage_path) if os.path.exists(self.storage_path) else 0
+            "success_count": self.instincts.get(pattern_key, {}).get("success_count", 0)
+            + 1,
+            "last_updated": os.path.getmtime(self.storage_path)
+            if os.path.exists(self.storage_path)
+            else 0,
         }
         self._save()
 
-    def recall(self, pattern_key: str) -> Optional[Any]:
+    def recall(self, pattern_key: str) -> Any | None:
         """Recalls a learned behavior pattern."""
         instinct = self.instincts.get(pattern_key)
         if instinct:
             logger.info(f"INSTINCT: Recalling pattern '{pattern_key}'")
             return instinct["behavior"]
         return None
+
 
 instinct_manager = InstinctManager()

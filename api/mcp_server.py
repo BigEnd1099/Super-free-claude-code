@@ -13,6 +13,7 @@ try:
 except ImportError:
     # If run directly as python api/mcp_server.py
     from telemetry import mission_manager
+
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from config.settings import get_settings
 
@@ -30,15 +31,15 @@ mcp = FastMCP("SuperFCC")
 async def get_mission_status() -> str:
     """Get the current mission telemetry, uptime, and active sessions from the live proxy."""
     import httpx
+
     port = os.getenv("PORT", "8082")
     base_url = f"http://localhost:{port}"
     token = os.getenv("ANTHROPIC_AUTH_TOKEN", "freecc")
-    
+
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(
-                f"{base_url}/v1/mission/status",
-                headers={"x-api-key": token}
+                f"{base_url}/v1/mission/status", headers={"x-api-key": token}
             )
             if resp.status_code == 200:
                 return str(resp.json())
@@ -53,15 +54,15 @@ async def get_mission_status() -> str:
 async def reset_all_missions() -> str:
     """Abort all active proxy sessions and reset mission manager state on the live proxy."""
     import httpx
+
     port = os.getenv("PORT", "8082")
     base_url = f"http://localhost:{port}"
     token = os.getenv("ANTHROPIC_AUTH_TOKEN", "freecc")
-    
+
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.post(
-                f"{base_url}/v1/mission/stop",
-                headers={"x-api-key": token}
+                f"{base_url}/v1/mission/stop", headers={"x-api-key": token}
             )
             if resp.status_code == 200:
                 return "All missions have been reset on the live proxy."
@@ -74,19 +75,18 @@ async def reset_all_missions() -> str:
 async def update_settings(key: str, value: str) -> str:
     """Update dynamic engine settings on the live proxy (e.g., planning:on, thinking:off)."""
     import httpx
+
     port = os.getenv("PORT", "8082")
     base_url = f"http://localhost:{port}"
     token = os.getenv("ANTHROPIC_AUTH_TOKEN", "freecc")
 
     val_bool = value.lower() in ["on", "true", "1", "yes"]
     payload = {key: val_bool}
-    
+
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.post(
-                f"{base_url}/v1/config",
-                json=payload,
-                headers={"x-api-key": token}
+                f"{base_url}/v1/config", json=payload, headers={"x-api-key": token}
             )
             if resp.status_code == 200:
                 return f"Setting updated on live proxy: {key} = {val_bool}"

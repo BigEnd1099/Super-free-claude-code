@@ -98,7 +98,7 @@ class EvaluatorSkill(Skill):
                             delta = data.get("delta", {})
                             if delta.get("type") == "text_delta":
                                 full_response += delta.get("text", "")
-                    except:
+                    except Exception:
                         continue
         except Exception as e:
             logger.error(f"EvaluatorSkill failed to call provider: {e}")

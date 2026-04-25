@@ -95,12 +95,16 @@ class MarkdownSkillLoader:
                         body = parts[2]
                         try:
                             meta = yaml.safe_load(frontmatter)
-                            skill = MarkdownSkill(meta, body.strip(), file_path=str(file))
+                            skill = MarkdownSkill(
+                                meta, body.strip(), file_path=str(file)
+                            )
                             self.skills[skill.name] = skill
-                            continue # Successfully loaded with frontmatter
+                            continue  # Successfully loaded with frontmatter
                         except Exception as ye:
-                            logger.warning(f"YAML error in {file.name}, falling back to simple load: {ye}")
-                
+                            logger.warning(
+                                f"YAML error in {file.name}, falling back to simple load: {ye}"
+                            )
+
                 # Fallback: Treat as a skill with no frontmatter, name from filename
                 skill = MarkdownSkill(
                     {"name": file.stem, "description": f"Skill from {file.name}"},

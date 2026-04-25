@@ -21,12 +21,10 @@ class SkillLoader:
         return cls._instance
 
     def __init__(self, root_dir: str | Path | None = None):
-        if not hasattr(self, "initialized"):
-            self.root_dir = Path(root_dir or Path.cwd())
-            self.skills: dict[str, Skill] = {}
-            self.loading = False
-            self.config = self._load_config()
-            self.initialized = True
+        self.root_dir = Path(root_dir or Path.cwd())
+        self.skills: dict[str, Skill] = {}
+        self.loading = False
+        self.config = self._load_config()
 
     def _load_config(self) -> dict[str, Any]:
         """Loads configuration from .agent/config.yaml."""
@@ -51,7 +49,13 @@ class SkillLoader:
             # Determine sources: from config or default paths
             sources = self.config.get("skills", {}).get(
                 "skills",
-                ["api/skills", "api/skills/markdown", "api/skills/imported", ".agent/skills", ".claude/skills"],
+                [
+                    "api/skills",
+                    "api/skills/markdown",
+                    "api/skills/imported",
+                    ".agent/skills",
+                    ".claude/skills",
+                ],
             )
 
             for source_path_str in sources:
@@ -60,6 +64,7 @@ class SkillLoader:
 
             # 3. Load Global User Skills (~/.claude/skills) - Markdown Only for safety
             import os
+
             global_skills = Path(os.path.expanduser("~/.claude/skills"))
             if global_skills.exists():
                 logger.info("Scanning global user skills (MD only)")
@@ -71,7 +76,9 @@ class SkillLoader:
                         if skill.name not in self.skills:
                             self.skills[skill.name] = skill
                             count += 1
-                    logger.info(f"SKILLS: Bulk loaded {count} global skills from {global_skills}")
+                    logger.info(
+                        f"SKILLS: Bulk loaded {count} global skills from {global_skills}"
+                    )
                 except Exception as e:
                     logger.error(f"Failed to load global Markdown skills: {e}")
         finally:
@@ -106,8 +113,10 @@ class SkillLoader:
                     md_count += 1
         except Exception as e:
             logger.error(f"Failed to load Markdown skills from {source_path_str}: {e}")
-            
-        logger.info(f"SKILLS: Bulk loaded {py_count} PY and {md_count} MD skills from {source_path_str}")
+
+        logger.info(
+            f"SKILLS: Bulk loaded {py_count} PY and {md_count} MD skills from {source_path_str}"
+        )
 
     def _load_python_skill(self, file: Path):
         """Loads a single Python skill from a file, handling package context."""

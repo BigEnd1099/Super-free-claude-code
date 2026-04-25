@@ -74,16 +74,10 @@ class ForensicAnalyzerSkill(Skill):
             return "ANALYSIS_COMPLETE: No relevant log entries found in the lookback window."
 
         # Perform basic forensics
-        errors = [l for l in logs if l.get("level") in ("ERROR", "WARNING")]
-        sessions = set(l.get("request_id") for l in logs if l.get("request_id"))
+        errors = [log for log in logs if log.get("level") in ("ERROR", "WARNING")]
+        sessions = {log.get("request_id") for log in logs if log.get("request_id")}
 
         # Detect rework loops (multiple edits to the same file in a short window)
-        # This is a bit complex without more context, but we can look for repeated 'ReplaceFileContent' etc.
-        edits = [
-            l
-            for l in logs
-            if "STREAM" in l.get("message", "") and "tools=" in l.get("message", "")
-        ]
 
         summary = (
             f"### FORENSIC SUMMARY (Last {len(logs)} entries)\n"
@@ -98,7 +92,7 @@ class ForensicAnalyzerSkill(Skill):
                 summary += f"- [{e.get('time')}] {e.get('level')}: {e.get('message')}\n"
 
         summary += "\n#### LOG SEGMENT:\n"
-        for l in logs[-10:]:
-            summary += f"[{l.get('time')}] {l.get('level')}: {l.get('message')}\n"
+        for log in logs[-10:]:
+            summary += f"[{log.get('time')}] {log.get('level')}: {log.get('message')}\n"
 
         return summary

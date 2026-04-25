@@ -20,11 +20,8 @@ def get_engine(settings: Settings):
     if _engine is None:
         # Check environment variable for root, fallback to CWD
         env_root = os.environ.get("GRAPHIFY_ROOT")
-        if env_root and os.path.exists(env_root):
-            root = Path(env_root)
-        else:
-            root = Path.cwd()
-            
+        root = Path(env_root) if env_root and os.path.exists(env_root) else Path.cwd()
+
         exclude = (
             settings.graphify_exclude_dirs
             if hasattr(settings, "graphify_exclude_dirs")
@@ -32,7 +29,9 @@ def get_engine(settings: Settings):
         )
         _engine = GraphifyEngine(root, exclude_dirs=exclude)
         # Pre-populate with a single node to avoid infinite scan loops
-        _engine.nodes = [{"id": "root", "label": "Project Sync Pending", "group": "module"}]
+        _engine.nodes = [
+            {"id": "root", "label": "Project Sync Pending", "group": "module"}
+        ]
     return _engine
 
 
@@ -59,10 +58,11 @@ async def set_project_root(payload: dict, settings: Settings = Depends(get_setti
         if _engine is None or _engine.root_path != root:
             _engine = GraphifyEngine(root, exclude_dirs=exclude)
             logger.info(f"GRAPHIFY: Project root updated to {root}")
-            
+
             # Also update skill loader root and reload
             try:
                 from api.skills.loader import skill_loader
+
                 skill_loader.root_dir = root
                 skill_loader.load_all()
                 logger.info(f"SKILLS: Reloaded for new root {root}")
@@ -76,11 +76,14 @@ async def set_project_root(payload: dict, settings: Settings = Depends(get_setti
 async def scan_codebase(settings: Settings = Depends(get_settings)):
     """Trigger a full scan of the codebase and return the graph data."""
     import anyio
+
     engine = get_engine(settings)
     try:
         # Ensure we are scanning the latest root
         data = await anyio.to_thread.run_sync(engine.scan)
-        logger.info(f"GRAPHIFY: Scan completed for {engine.root_path} with {len(data['nodes'])} nodes.")
+        logger.info(
+            f"GRAPHIFY: Scan completed for {engine.root_path} with {len(data['nodes'])} nodes."
+        )
         return data
     except Exception as e:
         logger.error(f"GRAPHIFY: Scan failed: {e}")
@@ -100,11 +103,13 @@ async def get_graph_data(settings: Settings = Depends(get_settings)):
 async def get_graph_report(settings: Settings = Depends(get_settings)):
     """Generates and returns a structural report of the graph."""
     import anyio
+
     from .report_generator import GraphReportGenerator
+
     engine = get_engine(settings)
     if not engine.nodes:
         await scan_codebase(settings)
-    
+
     generator = GraphReportGenerator(engine.get_networkx_graph(), engine.root_path)
     report_content = await anyio.to_thread.run_sync(generator.generate)
     return {"report": report_content}

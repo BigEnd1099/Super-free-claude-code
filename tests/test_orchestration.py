@@ -38,8 +38,11 @@ async def test_async_task_manager_parallel():
 
 
 def test_skill_loader(tmp_path):
-    # Create a dummy skill file
-    skill_file = tmp_path / "test_skill.py"
+    # Create a dummy skill file in a scanned directory
+    skills_dir = tmp_path / "api" / "skills"
+    skills_dir.mkdir(parents=True)
+
+    skill_file = skills_dir / "test_skill.py"
     skill_file.write_text("""
 from api.skills.base import Skill
 class MyTestSkill(Skill):

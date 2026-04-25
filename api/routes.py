@@ -29,7 +29,7 @@ from .graph.routes import router as graph_router
 from .models.agents import AgentListResponse, AgentVersionsResponse, CreateAgentRequest
 from .models.anthropic import MessagesRequest, TokenCountRequest
 from .models.responses import ModelResponse, ModelsListResponse, TokenCountResponse
-from .models.skills import SkillInfo, SkillListResponse
+from .models.skills import SkillListResponse
 from .optimization_handlers import try_optimizations
 from .orchestration.manager import team_manager
 from .planning import run_omx_planning
@@ -491,16 +491,17 @@ async def create_message(
 
         # Resolve provider from the model-aware mapping
         resolved_model = request_data.resolved_provider_model
-        
+
         if not resolved_model:
             from providers.common.router import get_router
+
             router_instance = get_router(settings)
-            
+
             # Determine task type
             task_type = "standard"
             if request_data.metadata and request_data.metadata.get("background"):
                 task_type = "background"
-            
+
             resolved_model = router_instance.route(task_type, request_data.model_dump())
             logger.info("ROUTER: Tiered routing selected model={}", resolved_model)
         else:
@@ -683,7 +684,10 @@ async def create_message(
                                 mission_manager.log_event(
                                     request_id,
                                     "tool_use",
-                                    {"name": active_tool_call["name"], "input": active_tool_call.get("input", {})}
+                                    {
+                                        "name": active_tool_call["name"],
+                                        "input": active_tool_call.get("input", {}),
+                                    },
                                 )
 
                             # Handle usage/tokens
@@ -696,16 +700,21 @@ async def create_message(
                                         request_id=request_id,
                                     )
                                     if "router_instance" in locals():
-                                        router_instance.track_usage(resolved_model, usage["output_tokens"])
-                            
+                                        router_instance.track_usage(
+                                            resolved_model, usage["output_tokens"]
+                                        )
+
                             # NEURAL VERIFICATION: Thinking Signature
-                            if settings.enable_thinking and (data.get("type") == "content_block_delta" or data.get("type") == "content_block_start"):
+                            if settings.enable_thinking and (
+                                data.get("type") == "content_block_delta"
+                                or data.get("type") == "content_block_start"
+                            ):
                                 content = ""
                                 if data.get("delta", {}).get("text"):
                                     content = data["delta"]["text"]
                                 elif data.get("content_block", {}).get("text"):
                                     content = data["content_block"]["text"]
-                                
+
                                 if content:
                                     mission_manager.verify_thinking(request_id, content)
                         except Exception:
@@ -1050,15 +1059,20 @@ async def archive_agent(agent_id: str, _auth=Depends(require_api_key)):
 
 
 @router.get("/v1/skills/catalog")
-async def get_skills_catalog(category: str | None = None, _auth=Depends(require_api_key)):
+async def get_skills_catalog(
+    category: str | None = None, _auth=Depends(require_api_key)
+):
     from .skills.catalog import catalog
+
     if category:
         return {"skills": catalog.get_skills_by_category(category)}
     return {"skills": catalog.get_all_skills(), "bundles": catalog.bundles}
 
+
 @router.get("/v1/skills/search")
 async def search_skills(query: str, _auth=Depends(require_api_key)):
     from .skills.catalog import catalog
+
     return {"skills": catalog.search_skills(query)}
 
 
@@ -1070,6 +1084,7 @@ async def list_skills(
     skills = []
     try:
         from .models.skills import SkillInfo
+
         for name, skill in skill_loader.skills.items():
             try:
                 skills.append(
@@ -1088,7 +1103,7 @@ async def list_skills(
     except Exception as e:
         logger.error(f"Error listing skills: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve skills: {str(e)}"
+            status_code=500, detail=f"Failed to retrieve skills: {e!s}"
         ) from None
 
     return SkillListResponse(data=skills)
