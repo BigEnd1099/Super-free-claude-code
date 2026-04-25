@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Claude | Ultimate Antigravity</title>
+    <title>Claude Ultimate + Antigravity</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,468 +12,528 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
         rel="stylesheet">
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 </head>
 
 <body class="dark-theme">
-    <div class="app-container">
+    <div class="app-wrapper">
         <aside class="sidebar">
-            <div class="logo">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z">
-                    </path>
-                    <path
-                        d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z">
-                    </path>
-                    <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"></path>
-                    <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"></path>
-                </svg>
-                <span class="text">ANTIGRAVITY</span>
-            </div>
-            <nav>
-                <a href="#" class="nav-item active" data-tab="dashboard" role="button" tabindex="0">
+            <div class="sidebar-header">
+                <div class="logo">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path
+                            d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z">
+                        </path>
+                        <path
+                            d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z">
+                        </path>
+                        <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"></path>
+                        <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"></path>
+                    </svg>
+                    <span>SUPER FCC <span style="color: var(--color-secondary)">NEXUS</span></span>
+                </div>
+                <div class="system-status">
+                    <span class="status-dot"></span> Bridge Active
+                </div>
+            </div>
+            <nav class="side-nav">
+                <a href="#" class="nav-item active" data-tab="dashboard">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2">
                         <rect x="3" y="3" width="7" height="7"></rect>
                         <rect x="14" y="3" width="7" height="7"></rect>
                         <rect x="14" y="14" width="7" height="7"></rect>
                         <rect x="3" y="14" width="7" height="7"></rect>
                     </svg>
-                    Dashboard
+                    <span>Dashboard</span>
                 </a>
-                <a href="#" class="nav-item" data-tab="agents" role="button" tabindex="0">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path
-                            d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z">
-                        </path>
-                        <circle cx="7.5" cy="14.5" r="1.5"></circle>
-                        <circle cx="16.5" cy="14.5" r="1.5"></circle>
+                <a href="#" class="nav-item" data-tab="agents">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                     </svg>
-                    Managed Agents
+                    <span>Active Swarm</span>
                 </a>
-                <a href="#" class="nav-item" data-tab="logs" role="button" tabindex="0">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                        <line x1="16" y1="13" x2="8" y2="13"></line>
-                        <line x1="16" y1="17" x2="8" y2="17"></line>
-                        <line x1="10" y1="9" x2="8" y2="9"></line>
+                <a href="#" class="nav-item" data-tab="feed">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2">
+                        <polyline points="4 17 10 11 4 5"></polyline>
+                        <line x1="12" y1="19" x2="20" y2="19"></line>
                     </svg>
-                    System Logs
+                    <span>Intelligence Feed</span>
                 </a>
-                <a href="#" class="nav-item" data-tab="config" role="button" tabindex="0">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <a href="#" class="nav-item" data-tab="graph">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2">
                         <circle cx="12" cy="12" r="3"></circle>
                         <path
                             d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
                         </path>
                     </svg>
-                    Configuration
+                    <span>Neural Map</span>
                 </a>
-                <a href="#" class="nav-item" data-tab="skills" role="button" tabindex="0">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <a href="#" class="nav-item" data-tab="skills">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2">
+                        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                    </svg>
+                    <span>Neural Skills</span>
+                </a>
+                <a href="#" class="nav-item" data-tab="mcp">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2">
                         <path
-                            d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.54-2.44 2.5 2.5 0 0 1-2-2.5 2.5 2.5 0 0 1 2-2.5 2.5 2.5 0 0 1 2.54-2.44A2.5 2.5 0 0 1 7.04 5.44 2.5 2.5 0 0 1 9.5 2z">
+                            d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z">
                         </path>
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                        <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                    </svg>
+                    <span>MCP Servers</span>
+                </a>
+                <a href="#" class="nav-item" data-tab="auth">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                    <span>Identity Lab</span>
+                </a>
+                <a href="#" class="nav-item" data-tab="logs">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2">
+                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                        <polyline points="13 2 13 9 20 9"></polyline>
+                    </svg>
+                    <span>System Logs</span>
+                </a>
+                <a href="#" class="nav-item" data-tab="config">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"></circle>
                         <path
-                            d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.54-2.44 2.5 2.5 0 0 0 2-2.5 2.5 2.5 0 0 0-2-2.5 2.5 2.5 0 0 0-2.54-2.44 2.5 2.5 0 0 0-2.54-2.06 2.5 2.5 0 0 0-2.46-3.44z">
+                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
                         </path>
                     </svg>
-                    Skills Library
-                </a>
-                <a href="#" class="nav-item" data-tab="mission" role="button" tabindex="0">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
-                    </svg>
-                    Mission Control
+                    <span>Settings</span>
                 </a>
             </nav>
-            <div class="sidebar-footer">
-                <div class="status-indicator">
-                    <span class="pulse-dot"></span>
-                    <span id="server-status-text">Server Online</span>
-                </div>
-            </div>
         </aside>
 
-        <main class="content">
-            <!-- Dashboard Tab -->
-            <section id="dashboard" class="tab-content active">
-                <header class="tab-header">
-                    <h1>Dashboard</h1>
-                    <p class="subtitle">Real-time status of your Claude Code Proxy</p>
-                </header>
+        <div class="app-container">
+            <main class="content">
+                <!-- Dashboard Tab -->
+                <section id="dashboard" class="tab-content active">
+                    <header class="tab-header">
+                        <h1>Dashboard</h1>
+                        <p class="subtitle">Operationalizing Tripartite Hybrid Workflow.</p>
+                    </header>
 
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-label">Active Provider</div>
-                        <div class="stat-value" id="stat-provider">...</div>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Active Provider</div>
+                            <div class="stat-value" id="stat-provider">...</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Model Fallback</div>
+                            <div class="stat-value" id="stat-model">...</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Agents Online</div>
+                            <div class="stat-value" id="stat-agents">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Total Tokens</div>
+                            <div class="stat-value" id="stat-tokens">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Estimated Cost</div>
+                            <div class="stat-value" id="stat-cost" style="color: var(--color-success)">$0.00</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Optimized Tasks</div>
+                            <div class="stat-value" id="stat-optimized">0</div>
+                        </div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Model Fallback</div>
-                        <div class="stat-value" id="stat-model">...</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Agents Count</div>
-                        <div class="stat-value" id="stat-agents">0</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Optimized Requests</div>
-                        <div class="stat-value" id="stat-optimized">0</div>
-                    </div>
-                </div>
 
-                <div class="dashboard-grid">
-                    <div class="visual-panel">
-                        <div class="panel-header">System Health</div>
-                        <div class="health-meters">
-                            <div class="meter">
-                                <label>Proxy Latency</label>
-                                <div class="bar-container">
-                                    <div class="bar" style="width: 15%"></div>
+                    <div class="dashboard-grid">
+                        <div class="visual-panel">
+                            <div class="panel-header">Hybrid Workflow Loop</div>
+                            <div
+                                style="display: flex; justify-content: space-around; align-items: center; height: 180px; position: relative;">
+                                <div id="node-planning" class="loop-node planning active">
+                                    <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none">
+                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                    </svg>
+                                    <span>PLANNING</span>
+                                </div>
+                                <div class="loop-arrow">→</div>
+                                <div id="node-execution" class="loop-node execution">
+                                    <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none">
+                                        <polyline points="16 18 22 12 16 6"></polyline>
+                                        <polyline points="8 6 2 12 8 18"></polyline>
+                                    </svg>
+                                    <span>EXECUTION</span>
+                                </div>
+                                <div class="loop-arrow">→</div>
+                                <div id="node-validation" class="loop-node validation">
+                                    <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none">
+                                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                    </svg>
+                                    <span>VALIDATION</span>
                                 </div>
                             </div>
-                            <div class="meter">
-                                <label>Rate Limit (40/min)</label>
-                                <div class="bar-container">
-                                    <div class="bar" id="rate-bar" style="width: 5%"></div>
+                            <div id="workflow-status-text"
+                                style="text-align: center; font-size: 0.85rem; color: var(--text-secondary); margin-top: 1rem; font-family: 'JetBrains Mono', monospace; min-height: 1.2em;">
+                                ARCHITECT: System idling...
+                            </div>
+                        </div>
+
+                        <div class="visual-panel">
+                            <div class="panel-header">System Health</div>
+                            <div class="health-meters">
+                                <div class="meter"><label>Proxy Latency</label>
+                                    <div class="bar-container">
+                                        <div class="bar" style="width: 15%"></div>
+                                    </div>
+                                </div>
+                                <div class="meter"><label>Context Saturation</label>
+                                    <div class="bar-container">
+                                        <div class="bar"
+                                            style="width: 32%; background: linear-gradient(90deg, var(--color-secondary), #d8b4fe);">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="meter"><label>Rate Limit Usage</label>
+                                    <div class="bar-container">
+                                        <div id="rate-bar" class="bar" style="width: 5%"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="visual-panel">
+                    <div class="visual-panel mt-dashboard-panel">
                         <div class="panel-header">Model Mapping</div>
                         <div class="mapping-list">
-                            <div class="mapping-item">
-                                <span>Opus Override</span>
-                                <input type="text" id="map-opus" placeholder="provider/model"
-                                    aria-label="Opus model override">
-                            </div>
-                            <div class="mapping-item">
-                                <span>Sonnet Override</span>
-                                <input type="text" id="map-sonnet" placeholder="provider/model"
-                                    aria-label="Sonnet model override">
-                            </div>
-                            <div class="mapping-item">
-                                <span>Haiku Override</span>
-                                <input type="text" id="map-haiku" placeholder="provider/model"
-                                    aria-label="Haiku model override">
-                            </div>
+                            <div class="mapping-item"><span>Opus Override</span><input type="text" id="map-opus"
+                                    placeholder="provider/model"></div>
+                            <div class="mapping-item"><span>Sonnet Override</span><input type="text" id="map-sonnet"
+                                    placeholder="provider/model"></div>
+                            <div class="mapping-item"><span>Haiku Override</span><input type="text" id="map-haiku"
+                                    placeholder="provider/model"></div>
                             <button class="btn btn-primary btn-sm" id="btn-save-mapping">Update Map</button>
                         </div>
                     </div>
-                </div>
-            </section>
+                </section>
 
-            <!-- Agents Tab -->
-            <section id="agents" class="tab-content">
-                <header class="tab-header">
-                    <div class="header-actions">
-                        <div style="flex: 1;">
-                            <h1>Managed Agents</h1>
-                            <p class="subtitle">Manage your custom personas and identities</p>
-                        </div>
-                        <div style="display: flex; gap: 0.75rem;">
-                            <button class="btn btn-secondary"
-                                onclick="document.getElementById('import-agent-input').click()">IMPORT</button>
-                            <input type="file" id="import-agent-input" style="display: none;" accept=".json">
-                            <button class="btn btn-primary" id="btn-new-agent">+ NEW AGENT</button>
-                        </div>
-                    </div>
-                </header>
-
-                <div class="agents-list" id="agents-container">
-                    <!-- Agent cards will be injected here -->
-                    <div class="loading-spinner">
-                        <div class="spinner"></div>
-                        <span>Loading agents...</span>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Logs Tab -->
-            <section id="logs" class="tab-content">
-                <header class="tab-header">
-                    <h1>System Logs</h1>
-                    <p class="subtitle">Live traffic and proxy activity</p>
-                </header>
-
-                <div class="stats-grid mb-6">
-                    <div class="stat-card">
-                        <div class="stat-label">Total Tokens</div>
-                        <div class="stat-value" id="analytics-tokens">...</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Estimated Cost</div>
-                        <div class="stat-value" id="analytics-cost" style="color: var(--color-success)">...</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Avg Latency</div>
-                        <div class="stat-value" id="analytics-latency">...</div>
-                    </div>
-                </div>
-
-                <div class="log-viewer" role="log" aria-live="polite">
-                    <div class="log-content" id="log-content">
-                        [SYSTEM] Initializing Antigravity UI...
-                        [SYSTEM] Connecting to backend at /v1/messages...
-                    </div>
-                </div>
-            </section>
-
-            <!-- Config Tab -->
-            <section id="config" class="tab-content">
-                <header class="tab-header">
-                    <h1>Configuration</h1>
-                    <p class="subtitle">Manage your environment variables and keys and global intelligence settings</p>
-                </header>
-                <div class="config-grid">
-                    <div class="config-card">
-                        <h3>API Keys</h3>
-                        <div class="form-group">
-                            <label for="cfg-nim-key">NVIDIA NIM Key</label>
-                            <input type="password" id="cfg-nim-key" value="************************" disabled
-                                aria-describedby="nim-key-help">
-                            <small id="nim-key-help"
-                                style="color: var(--text-muted); margin-top: 0.25rem; display: block;">Set via
-                                environment variable</small>
-                            <div class="form-group">
-                                <label for="cfg-auth-token">Anthropic Auth Token</label>
-                                <input type="text" id="cfg-auth-token" placeholder="Optional"
-                                    aria-describedby="auth-token-help">
+                <!-- Active Swarm Tab -->
+                <section id="agents" class="tab-content">
+                    <header class="tab-header">
+                        <div class="header-actions">
+                            <div style="flex: 1;">
+                                <h1>Active Swarm</h1>
+                                <p class="subtitle">Orchestrating parallel agent streams and cross-agent
+                                    synchronization.</p>
                             </div>
-                            <h3>Global Settings</h3>
+                            <div style="display: flex; gap: 0.75rem;">
+                                <button class="btn btn-secondary"
+                                    onclick="document.getElementById('import-agent-input').click()">IMPORT</button>
+                                <input type="file" id="import-agent-input" style="display: none;" accept=".json">
+                                <button class="btn btn-primary" id="btn-new-agent">+ NEW AGENT</button>
+                            </div>
+                        </div>
+                    </header>
+
+                    <div class="mission-grid" style="grid-template-columns: 1fr; height: auto;">
+                        <div class="visual-panel">
+                            <div class="panel-header">Swarm Entities</div>
+                            <div class="agents-list" id="agents-container" style="max-height: 600px; overflow-y: auto;">
+                                <div class="loading-spinner">
+                                    <div class="spinner"></div><span>Loading agents...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Intelligence Feed Tab -->
+                <section id="feed" class="tab-content">
+                    <header class="tab-header">
+                        <h1>Intelligence Feed</h1>
+                        <p class="subtitle">Real-time telemetry and mission progression stream.</p>
+                    </header>
+                    <div class="mission-grid">
+                        <aside class="mission-sidebar">
+                            <div class="visual-panel">
+                                <div class="panel-header">System Changes</div>
+                                <div id="change-log" class="change-list">
+                                    <div class="empty-state">No changes detected.</div>
+                                </div>
+                            </div>
+                        </aside>
+                        <main class="mission-feed">
+                            <div id="intelligence-feed" class="terminal-view" style="height: 600px;">
+                                <div class="terminal-line system">Super FCC Architect initialized.</div>
+                            </div>
+                            <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+                                <button id="btn-stop-all" class="btn btn-secondary"
+                                    style="flex: 1; border-color: var(--color-danger); color: var(--color-danger);">ABORT
+                                    ALL MISSIONS</button>
+                                <button class="btn btn-primary" style="flex: 1;" onclick="window.print()">EXPORT
+                                    LOGS</button>
+                            </div>
+                        </main>
+                    </div>
+                </section>
+
+                <!-- Neural Map Tab -->
+                <section id="graph" class="tab-content">
+                    <header class="tab-header">
+                        <h1>Neural Map</h1>
+                        <p class="subtitle">Interactive knowledge graph of your project's architecture.</p>
+                        <div id="active-project-path"
+                            style="font-size: 0.75rem; color: var(--color-primary); font-family: 'JetBrains Mono', monospace; margin-top: 0.5rem; opacity: 0.8;">
+                            [ROOT] Syncing...
+                        </div>
+                    </header>
+                    <div class="visual-panel graph-panel-expanded"
+                        style="height: 75vh; min-height: 700px; position: relative;">
+                        <div id="graph-container" style="width: 100%; height: 100%;"></div>
+                        <div style="position: absolute; top: 1rem; right: 1rem; display: flex; align-items: center; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; background: rgba(0,0,0,0.3); padding: 4px 12px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);">
+                                <label for="graph-perf-mode" style="font-size: 0.75rem; color: var(--text-muted); cursor: pointer;">Performance</label>
+                                <input type="checkbox" id="graph-perf-mode" checked style="width: 16px; height: 16px; cursor: pointer;">
+                            </div>
+                            <button class="btn btn-secondary btn-sm" id="btn-refresh-graph">SCAN CODEBASE</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Neural Skills Tab -->
+                <section id="skills" class="tab-content">
+                    <header class="tab-header">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                            <div>
+                                <h1>Neural Skills</h1>
+                                <p class="subtitle">Browse and select from 1,200+ specialized expansion modules.</p>
+                            </div>
+                            <div class="status-chip">
+                                <span class="pulse"></span>
+                                <span id="skill-count">0</span> Registered
+                            </div>
+                        </div>
+                    </header>
+                    <div class="visual-panel" style="display: flex; flex-direction: column; min-height: 600px;">
+                        <div class="search-box" style="margin-bottom: 2rem;">
+                            <input type="text" id="skill-search" placeholder="Filter neural capabilities..."
+                                style="width: 100%; max-width: 400px; background: var(--bg-accent); border: 1px solid rgba(255,255,255,0.1); padding: 0.75rem 1rem; border-radius: 12px; color: #fff;">
+                        </div>
+                        <div id="skills-container" class="skills-grid" style="overflow-y: auto; flex: 1;">
+                            <div class="loading-spinner">
+                                <div class="spinner"></div><span>Scanning Library...</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Identity Lab Tab -->
+                <section id="auth" class="tab-content">
+                    <header class="tab-header">
+                        <h1>Identity Lab</h1>
+                        <p class="subtitle">Multi-account sessions and identity rotation.</p>
+                    </header>
+                    <div class="stats-grid" id="auth-stats-container"></div>
+                    <div class="visual-panel mt-4">
+                        <div class="panel-header">Active Session Swarm</div>
+                        <div id="auth-list" class="mapping-list"></div>
+                        <button class="btn btn-primary btn-sm mt-4" id="btn-add-session">+ INJECT SESSION</button>
+                    </div>
+                </section>
+
+                <!-- MCP Servers Tab -->
+                <section id="mcp" class="tab-content">
+                    <header class="tab-header">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <h1>MCP Servers</h1>
+                                <p class="subtitle">Manage Model Context Protocol extensions and external tools.</p>
+                            </div>
+                            <button class="btn btn-primary" id="btn-new-mcp">+ REGISTER SERVER</button>
+                        </div>
+                    </header>
+                    <div class="visual-panel">
+                        <div id="mcp-server-list" class="skills-grid">
+                            <div class="subtitle">No MCP servers registered.</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- System Logs Tab -->
+                <section id="logs" class="tab-content">
+                    <header class="tab-header">
+                        <h1>System Logs</h1>
+                        <p class="subtitle">Live traffic and proxy activity telemetry.</p>
+                    </header>
+                    <div class="visual-panel">
+                        <div class="log-viewer" style="height: 500px;">
+                            <div class="log-content" id="log-content" style="font-size: 0.85rem;">
+                                [SYSTEM] Initializing telemetry stream...
+                            </div>
+                        </div>
+                        <div class="stats-grid mt-4">
+                            <div class="stat-card">
+                                <div class="stat-label">Total Tokens</div>
+                                <div class="stat-value" id="analytics-tokens">...</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-label">Estimated Cost</div>
+                                <div class="stat-value" id="analytics-cost" style="color: var(--color-success)">...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Settings Tab -->
+                <section id="config" class="tab-content">
+                    <header class="tab-header">
+                        <h1>Settings</h1>
+                        <p class="subtitle">Manage environment variables and global intelligence settings.</p>
+                    </header>
+                    <div class="config-grid">
+                        <div class="config-card">
+                            <h3>API & Security</h3>
+                            <div class="form-group"><label>NVIDIA NIM Key</label><input type="password"
+                                    value="************************" disabled></div>
+                            <div class="form-group"><label>Anthropic Token</label><input type="text" id="cfg-auth-token"
+                                    placeholder="Optional"></div>
+                        </div>
+                        <div class="config-card">
+                            <h3>Intelligence Rules</h3>
                             <div class="form-group"
                                 style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                                <div>
-                                    <label style="margin:0">Neural Thinking (Pro Mode)</label>
-                                    <small style="display:block; color:var(--text-muted)">Enable provider-side reasoning</small>
-                                </div>
+                                <div><label>Neural Thinking</label><small
+                                        style="display:block; color:var(--text-muted)">Enable provider-side
+                                        reasoning</small></div>
                                 <input type="checkbox" id="cfg-thinking" checked style="width:20px; height:20px;">
                             </div>
                             <div class="form-group"
                                 style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                                <div>
-                                    <label style="margin:0">Hyper-Analysis (40 RPM Mode)</label>
-                                    <small style="display:block; color:var(--text-muted)">Parallel 70B shadow intelligence</small>
-                                </div>
+                                <div><label>Hyper-Analysis</label><small
+                                        style="display:block; color:var(--text-muted)">Parallel 70B shadow
+                                        intelligence</small></div>
                                 <input type="checkbox" id="cfg-hyper" checked style="width:20px; height:20px;">
                             </div>
                             <div class="form-group"
-                                style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                                <div>
-                                    <label style="margin:0">Adversarial Mode (Parseltongue)</label>
-                                    <small style="display:block; color:var(--text-muted)">Perturb input to bypass provider filters</small>
+                                style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0;">
+                                <div><label>Adversarial Mode</label><small
+                                        style="display:block; color:var(--text-muted)">Bypass provider filters</small>
                                 </div>
                                 <input type="checkbox" id="cfg-adversarial" style="width:20px; height:20px;">
                             </div>
-                            <div class="form-group"
-                                style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                                <div>
-                                    <label style="margin:0">Raw Mode (STM)</label>
-                                    <small style="display:block; color:var(--text-muted)">Strip preambles and hedges from output</small>
-                                </div>
-                                <input type="checkbox" id="cfg-raw" style="width:20px; height:20px;">
-                            </div>
-                            <div class="form-group"
-                                style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0;">
-                                <div>
-                                    <label style="margin:0">Planning Mode (OmX)</label>
-                                    <small style="display:block; color:var(--text-muted)">Force architectural planning (Claw Code)</small>
-                                </div>
-                                <input type="checkbox" id="cfg-planning" style="width:20px; height:20px;">
-                            </div>
-                        </div>
-
-                        <div class="config-card">
-                            <h3>MCP Tool Servers</h3>
-                            <div id="mcp-server-list" class="mcp-list">
-                                <div class="empty-state">No MCP servers configured.</div>
-                            </div>
-                            <button class="btn btn-secondary btn-sm mt-4" id="btn-new-mcp" style="width: 100%;">
-                                + REGISTER MCP SERVER
-                            </button>
                         </div>
                     </div>
-            </section>
+                </section>
+            </main>
+        </div>
 
-            <!-- Skills Tab -->
-            <section id="skills" class="tab-content">
-                <header class="tab-header">
-                    <h1>Neural Skills</h1>
-                    <p class="subtitle">Search and select from 1,200+ specialized expansion modules.</p>
-                </header>
+        <!-- Create Agent Modal -->
+        <div id="modal-agent" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+            <div class="modal-content">
+                <h2 id="modal-title">Create New Agent</h2>
 
-                <div class="search-box mb-6">
-                    <input type="text" id="skill-search" placeholder="Search 1,200+ neural skills..."
-                        style="width: 100%; max-width: 400px; background: var(--bg-accent); border: 1px solid rgba(255,255,255,0.1); padding: 0.75rem 1rem; border-radius: 12px; color: #fff;">
-                </div>
-
-                <div class="skills-grid" id="skills-container">
-                    <!-- Skills will be injected here -->
-                    <div class="loading-spinner">
-                        <div class="spinner"></div>
-                        <span>Scanning Neural Library...</span>
+                <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label for="agent-name">Name</label>
+                        <input type="text" id="agent-name" placeholder="e.g. Senior Backend Dev" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="agent-category">Category</label>
+                        <select id="agent-category">
+                            <option value="general">General</option>
+                            <option value="design">Design</option>
+                            <option value="orchestration">Orchestration</option>
+                            <option value="workflows">Workflows</option>
+                            <option value="modding">Modding</option>
+                        </select>
                     </div>
                 </div>
-            </section>
 
-            <!-- Mission Control Tab -->
-            <section id="mission" class="tab-content">
-                <header class="tab-header">
-                    <h1>Mission Control</h1>
-                    <p class="subtitle">Managing Claude Code sessions and multi-AI synchronization.</p>
-                </header>
-
-                <div class="mission-grid">
-                    <!-- Left: Active Session & Controls -->
-                    <div class="mission-sidebar">
-                        <div class="config-card">
-                            <h3>Active Intelligence</h3>
-                            <div id="active-session-info">
-                                <div class="status-badge status-idle">IDLE</div>
-                                <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 0.5rem;">Waiting
-                                    for mission launch...</p>
-                            </div>
-                            <div class="mission-controls mt-4">
-                                <button id="btn-stop-all" class="btn btn-secondary"
-                                    style="width: 100%; border-color: var(--color-danger); color: var(--color-danger);">
-                                    ABORT ALL MISSIONS
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="config-card mt-4">
-                            <h3>Neural Change Log</h3>
-                            <div id="change-log" class="change-list">
-                                <div class="empty-state">No changes detected yet.</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Right: Live Intelligence Feed -->
-                    <div class="mission-feed">
-                        <div class="config-card" style="height: 100%; display: flex; flex-direction: column;">
-                            <div
-                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                                <h3>Intelligence Feed</h3>
-                                <div class="feed-stats">
-                                    <span id="feed-tool-count">0 tools used</span>
-                                </div>
-                            </div>
-                            <div id="intelligence-feed" class="terminal-view">
-                                <div class="terminal-line system">Antigravity Architect initialized.</div>
-                                <div class="terminal-line system">Awaiting Executor connection...</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-        </main>
-    </div>
-
-    <!-- Create Agent Modal -->
-    <div id="modal-agent" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-        <div class="modal-content">
-            <h2 id="modal-title">Create New Agent</h2>
-
-            <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                 <div class="form-group">
-                    <label for="agent-name">Name</label>
-                    <input type="text" id="agent-name" placeholder="e.g. Senior Backend Dev" required>
-                </div>
-                <div class="form-group">
-                    <label for="agent-category">Category</label>
-                    <select id="agent-category">
-                        <option value="general">General</option>
-                        <option value="design">Design</option>
-                        <option value="orchestration">Orchestration</option>
-                        <option value="workflows">Workflows</option>
-                        <option value="modding">Modding</option>
+                    <label for="agent-model">Model</label>
+                    <select id="agent-model">
+                        <option value="claude-opus-4-7">Claude Opus 4.7</option>
+                        <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+                        <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+                        <option value="claude-3-opus-20240229">Claude 3 Opus</option>
+                        <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
                     </select>
                 </div>
-            </div>
 
-            <div class="form-group">
-                <label for="agent-model">Model</label>
-                <select id="agent-model">
-                    <option value="claude-opus-4-7">Claude Opus 4.7</option>
-                    <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
-                    <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
-                    <option value="claude-3-opus-20240229">Claude 3 Opus</option>
-                    <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
-                </select>
-            </div>
+                <div class="form-group">
+                    <label for="agent-description">Description</label>
+                    <input type="text" id="agent-description" placeholder="Short description of this agent">
+                </div>
 
-            <div class="form-group">
-                <label for="agent-description">Description</label>
-                <input type="text" id="agent-description" placeholder="Short description of this agent">
-            </div>
+                <div class="form-group">
+                    <label for="agent-system">System Prompt</label>
+                    <textarea id="agent-system" rows="4" placeholder="You are a helpful assistant..."></textarea>
+                </div>
 
-            <div class="form-group">
-                <label for="agent-system">System Prompt</label>
-                <textarea id="agent-system" rows="4" placeholder="You are a helpful assistant..."></textarea>
-            </div>
+                <div class="form-group">
+                    <label for="agent-skills">Skills (comma-separated)</label>
+                    <input type="text" id="agent-skills" placeholder="e.g. antigravity-design-expert, ui-ux-pro-max">
+                </div>
 
-            <div class="form-group">
-                <label for="agent-skills">Skills (comma-separated)</label>
-                <input type="text" id="agent-skills" placeholder="e.g. antigravity-design-expert, ui-ux-pro-max">
-            </div>
+                <div class="form-group">
+                    <label for="agent-metadata">Metadata (JSON)</label>
+                    <textarea id="agent-metadata" rows="2" placeholder='{"key": "value"}'></textarea>
+                </div>
 
-            <div class="form-group">
-                <label for="agent-metadata">Metadata (JSON)</label>
-                <textarea id="agent-metadata" rows="2" placeholder='{"key": "value"}'></textarea>
-            </div>
+                <div class="form-group">
+                    <label for="agent-mcp">MCP Servers (JSON Array)</label>
+                    <textarea id="agent-mcp" rows="2" placeholder='[{"name": "server", "url": "..."}]'></textarea>
+                </div>
 
-            <div class="form-group">
-                <label for="agent-mcp">MCP Servers (JSON Array)</label>
-                <textarea id="agent-mcp" rows="2" placeholder='[{"name": "server", "url": "..."}]'></textarea>
-            </div>
-
-            <div class="modal-footer">
-                <button class="btn btn-secondary" id="btn-close-modal">Cancel</button>
-                <button class="btn btn-primary" id="btn-save-agent">Save Agent</button>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="btn-close-modal">Cancel</button>
+                    <button class="btn btn-primary" id="btn-save-agent">Save Agent</button>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- MCP Registration Modal -->
-    <div id="modal-mcp" class="modal" role="dialog" aria-modal="true" aria-labelledby="mcp-modal-title">
-        <div class="modal-content">
-            <h2 id="mcp-modal-title">Register MCP Server</h2>
-            <p class="subtitle" style="margin-bottom: 1.5rem;">Connect external tool providers to the intelligence swarm.</p>
-            
-            <div class="form-group">
-                <label for="mcp-name">Server Name</label>
-                <input type="text" id="mcp-name" placeholder="e.g. github-tools" required>
-            </div>
+        <!-- MCP Registration Modal -->
+        <div id="modal-mcp" class="modal" role="dialog" aria-modal="true" aria-labelledby="mcp-modal-title">
+            <div class="modal-content">
+                <h2 id="mcp-modal-title">Register MCP Server</h2>
+                <p class="subtitle" style="margin-bottom: 1.5rem;">Connect external tool providers to the intelligence
+                    swarm.</p>
 
-            <div class="form-group">
-                <label for="mcp-type">Connection Type</label>
-                <select id="mcp-type">
-                    <option value="command">Stdio Command</option>
-                    <option value="sse">SSE (HTTP)</option>
-                </select>
-            </div>
+                <div class="form-group">
+                    <label for="mcp-name">Server Name</label>
+                    <input type="text" id="mcp-name" placeholder="e.g. github-tools" required>
+                </div>
 
-            <div class="form-group">
-                <label for="mcp-command">Command / URL</label>
-                <textarea id="mcp-command" rows="3" placeholder="e.g. npx -y @modelcontextprotocol/server-github"></textarea>
-            </div>
+                <div class="form-group">
+                    <label for="mcp-type">Connection Type</label>
+                    <select id="mcp-type">
+                        <option value="command">Stdio Command</option>
+                        <option value="sse">SSE (HTTP)</option>
+                    </select>
+                </div>
 
-            <div class="modal-footer">
-                <button class="btn btn-secondary" id="btn-close-mcp">Cancel</button>
-                <button class="btn btn-primary" id="btn-save-mcp">Register Server</button>
+                <div class="form-group">
+                    <label for="mcp-command">Command / URL</label>
+                    <textarea id="mcp-command" rows="3"
+                        placeholder="e.g. npx -y @modelcontextprotocol/server-github"></textarea>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="btn-close-mcp">Cancel</button>
+                    <button class="btn btn-primary" id="btn-save-mcp">Register Server</button>
+                </div>
             </div>
         </div>
-    </div>
 
+    </div>
     <script src="app.js"></script>
 </body>
 

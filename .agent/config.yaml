@@ -1,0 +1,33 @@
+# Antigravity Project Configuration
+# Inspired by Everything Claude Code (ECC)
+
+project:
+  name: "Claude Ultimate Antigravity"
+  version: "1.0.0"
+  description: "Advanced Multi-Agent Orchestration Framework"
+
+agents:
+  orchestrator:
+    model: "claude-3-5-sonnet-20241022"
+    system_prompt: |
+      You are the Master Orchestrator of the Antigravity system.
+      Your goal is to coordinate specialized agents and manage the project's state.
+      Always prioritize efficiency and security.
+
+skills:
+  enabled_sources:
+    - "api/skills"
+    - "api/skills/markdown"
+    - ".agent/skills"
+    - "api/skills/playbooks"
+  
+  auto_reload: true
+
+graphify:
+  enabled: true
+  exclude_dirs:
+    - ".venv"
+    - "__pycache__"
+    - ".git"
+    - "static"
+  depth: 3

@@ -1,5 +1,5 @@
 """
-Claude Ultimate Antigravity - Unified Proxy & Managed Agents
+Claude Ultimate + Antigravity - Unified Proxy & Managed Agents
 Unified entry point for free LLM access and local managed agents.
 Run with: uv run uvicorn server:app --host 0.0.0.0 --port 8082
 """

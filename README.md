@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🤖 Claude Ultimate Antigravity
+# 🤖 Super FCC - Claude Ultimate + Antigravity
 
 ### The Unified Powerhouse: Free LLM Access + Managed Agents
 
@@ -271,7 +271,7 @@ Set-Alias cf .\cf.ps1
 
 ## Managed Agents
 
-Antigravity Agents allow you to define custom personas with specific system prompts and target models.
+Agents allow you to define custom personas with specific system prompts and target models.
 
 ### Using Agents with Claude Code
 When you select an agent (via the picker or `-a` flag), the proxy:

@@ -107,7 +107,3 @@ Use this to wipe Claude Code's internal memory if the context window gets too he
 ```powershell
 claude /clear
 ```
-
----
-> [!IMPORTANT]
-> When executing these procedures, ensure both your `.env` file for Antigravity is configured with your real `ANTHROPIC_AUTH_TOKEN`, and your terminal session for Claude Code is strictly routed to the `localhost:8082` endpoint to prevent leakage.

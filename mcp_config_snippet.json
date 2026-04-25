@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "super-fcc": {
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "d:\\Claude-Ultimate-Antigravity\\cf.ps1",
+        "-mcp"
+      ]
+    }
+  }
+}

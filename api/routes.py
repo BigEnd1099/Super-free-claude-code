@@ -5,12 +5,9 @@ import json
 import time
 import traceback
 import uuid
-from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 import psutil
-import yaml
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from loguru import logger
@@ -20,6 +17,7 @@ from providers.common import get_user_facing_error_message
 from providers.exceptions import InvalidRequestError, ProviderError
 
 from .agents_db import agents_db
+from .auth.routes import router as auth_router
 from .dependencies import (
     check_depth,
     get_provider_for_type,
@@ -27,16 +25,22 @@ from .dependencies import (
     require_api_key,
     update_provider_configs,
 )
+from .graph.routes import router as graph_router
 from .models.agents import AgentListResponse, AgentVersionsResponse, CreateAgentRequest
 from .models.anthropic import MessagesRequest, TokenCountRequest
 from .models.responses import ModelResponse, ModelsListResponse, TokenCountResponse
 from .models.skills import SkillInfo, SkillListResponse
 from .optimization_handlers import try_optimizations
+from .orchestration.manager import team_manager
 from .planning import run_omx_planning
 from .request_utils import get_token_count
+from .skills.loader import skill_loader
 from .telemetry import mission_manager
+from .utils.context_trimmer import context_trimmer
 
 router = APIRouter()
+router.include_router(graph_router)
+router.include_router(auth_router)
 
 
 @router.get("/pulse")
@@ -183,24 +187,38 @@ def perturb_prompt(text: str) -> str:
     """Adversarial Mode (Parseltongue) - Perturb sensitive words to bypass filters."""
     # Comprehensive homoglyph mapping
     homoglyphs = {
-        "a": "а",  # cyrillic a
-        "e": "е",  # cyrillic e
-        "i": "і",  # cyrillic i
-        "o": "о",  # cyrillic o
-        "p": "р",  # cyrillic p
-        "c": "с",  # cyrillic c
-        "y": "у",  # cyrillic y
-        "x": "х",  # cyrillic x
-        "s": "ѕ",  # macedonian dze
+        "a": "а",  # cyrillic a # noqa: RUF001
+        "e": "е",  # cyrillic e # noqa: RUF001
+        "i": "і",  # cyrillic i # noqa: RUF001
+        "o": "о",  # cyrillic o # noqa: RUF001
+        "p": "р",  # cyrillic p # noqa: RUF001
+        "c": "с",  # cyrillic c # noqa: RUF001
+        "y": "у",  # cyrillic y # noqa: RUF001
+        "x": "х",  # cyrillic x # noqa: RUF001
+        "s": "ѕ",  # macedonian dze # noqa: RUF001
         "k": "κ",  # greek kappa
-        "n": "ո",  # armenian o
-        "v": "ν",  # greek nu
+        "n": "ո",  # armenian o # noqa: RUF001
+        "v": "ν",  # greek nu # noqa: RUF001
     }
     # Targeted words that often trigger filters
     sensitive_words = [
-        "system", "root", "password", "hack", "bypass", "exploit",
-        "secret", "private", "admin", "sudo", "jailbreak", "override",
-        "credential", "token", "auth", "login", "vulnerability",
+        "system",
+        "root",
+        "password",
+        "hack",
+        "bypass",
+        "exploit",
+        "secret",
+        "private",
+        "admin",
+        "sudo",
+        "jailbreak",
+        "override",
+        "credential",
+        "token",
+        "auth",
+        "login",
+        "vulnerability",
     ]
 
     words = text.split()
@@ -280,6 +298,36 @@ async def stop_missions():
 
 
 # =============================================================================
+# Orchestration & Whiteboard
+# =============================================================================
+@router.post("/v1/orchestration/whiteboard/set")
+async def whiteboard_set(key: str, value: Any, request: Request):
+    """Post data to the shared whiteboard."""
+    session_id = request.headers.get("x-session-id", "default")
+    session = team_manager.get_or_create_session(session_id)
+    await session.memory.set_task(key, value)
+    return {"status": "success", "key": key}
+
+
+@router.get("/v1/orchestration/whiteboard/get")
+async def whiteboard_get(key: str, request: Request):
+    """Retrieve data from the shared whiteboard."""
+    session_id = request.headers.get("x-session-id", "default")
+    session = team_manager.get_or_create_session(session_id)
+    value = await session.memory.get_task(key)
+    return {"key": key, "value": value}
+
+
+@router.get("/v1/orchestration/whiteboard/keys")
+async def whiteboard_keys(request: Request):
+    """List all available whiteboard keys."""
+    session_id = request.headers.get("x-session-id", "default")
+    session = team_manager.get_or_create_session(session_id)
+    keys = await session.memory.get_all_keys()
+    return {"keys": keys}
+
+
+# =============================================================================
 # Routes
 # =============================================================================
 @router.post("/v1/messages")
@@ -320,6 +368,26 @@ async def create_message(
         optimized = try_optimizations(request_data, settings)
         if optimized is not None:
             return optimized
+
+        # Inject dynamically loaded skills (Superpowers)
+        if skill_loader.skills:
+            if not request_data.tools:
+                request_data.tools = []
+
+            for skill_def in skill_loader.get_tool_definitions():
+                if not any(t.name == skill_def["name"] for t in request_data.tools):
+                    from .models.anthropic import Tool
+
+                    request_data.tools.append(Tool(**skill_def))
+
+        # Apply context trimming for inter-agent efficiency
+        msg_dicts = [m.model_dump() for m in request_data.messages]
+        trimmed_dicts = await context_trimmer.trim_history(msg_dicts)
+        if len(trimmed_dicts) != len(msg_dicts):
+            from .models.anthropic import Message
+
+            request_data.messages = [Message(**m) for m in trimmed_dicts]
+
         # Apply model/agent override if present in request state
         override = getattr(raw_request.state, "model_override", None)
         if override:
@@ -422,7 +490,24 @@ async def create_message(
                 request_data.resolved_provider_model = override
 
         # Resolve provider from the model-aware mapping
-        resolved_model = request_data.resolved_provider_model or settings.model
+        resolved_model = request_data.resolved_provider_model
+        
+        if not resolved_model:
+            from providers.common.router import get_router
+            router_instance = get_router(settings)
+            
+            # Determine task type
+            task_type = "standard"
+            if request_data.metadata and request_data.metadata.get("background"):
+                task_type = "background"
+            
+            resolved_model = router_instance.route(task_type, request_data.model_dump())
+            logger.info("ROUTER: Tiered routing selected model={}", resolved_model)
+        else:
+            resolved_model = resolved_model or settings.model
+
+        # Define request_id early for shadow intelligence/planning logging
+        request_id = f"req_{uuid.uuid4().hex[:12]}"
 
         # HYPER-ANALYSIS: Shadow Intelligence Phase
         if settings.enable_hyper_analysis and request_data.messages:
@@ -442,7 +527,11 @@ async def create_message(
                     prompt_text, resolved_model, settings
                 )
                 if shadow_intel:
-                    mission_manager.log_tokens(shadow_tokens, model="llama-3.3-70b", request_id=request_id if 'request_id' in locals() else None)
+                    mission_manager.log_tokens(
+                        shadow_tokens,
+                        model="llama-3.3-70b",
+                        request_id=request_id if "request_id" in locals() else None,
+                    )
                     if isinstance(request_data.system, str):
                         request_data.system += shadow_intel
                     elif isinstance(request_data.system, list):
@@ -471,7 +560,11 @@ async def create_message(
                     prompt_text, resolved_model, settings, nim_client=nim_client
                 )
                 if omx_plan:
-                    mission_manager.log_tokens(omx_tokens, model="llama-3.3-70b", request_id=request_id if 'request_id' in locals() else None)
+                    mission_manager.log_tokens(
+                        omx_tokens,
+                        model="llama-3.3-70b",
+                        request_id=request_id if "request_id" in locals() else None,
+                    )
                     if isinstance(request_data.system, str):
                         request_data.system += omx_plan
                     elif isinstance(request_data.system, list):
@@ -491,9 +584,13 @@ async def create_message(
                         msg.content = perturb_prompt(msg.content)
                     elif isinstance(msg.content, list):
                         for block in msg.content:
-                            if getattr(block, "type", None) == "text":
+                            from api.models.anthropic import ContentBlockText
+
+                            if isinstance(block, ContentBlockText):
                                 block.text = perturb_prompt(block.text)
-                            elif isinstance(block, dict) and block.get("type") == "text":
+                            elif (
+                                isinstance(block, dict) and block.get("type") == "text"
+                            ):
                                 block["text"] = perturb_prompt(block["text"])
         if "/" not in resolved_model:
             logger.warning(
@@ -516,8 +613,6 @@ async def create_message(
 
         from providers.resilience import with_resilient_stream
 
-        request_id = f"req_{uuid.uuid4().hex[:12]}"
-
         # MISSION CONTROL: Start session
         mission_manager.start_session(request_id, resolved_model)
 
@@ -531,7 +626,11 @@ async def create_message(
         input_tokens = get_token_count(
             request_data.messages, request_data.system, request_data.tools
         )
-        mission_manager.log_tokens(input_tokens, model=resolved_model, request_id=request_id)
+        mission_manager.log_tokens(
+            input_tokens, model=resolved_model, request_id=request_id
+        )
+        if "router_instance" in locals():
+            router_instance.track_usage(resolved_model, input_tokens)
 
         import asyncio
 
@@ -581,12 +680,34 @@ async def create_message(
                                     active_tool_call["name"],
                                     active_tool_call.get("input", {}),
                                 )
+                                mission_manager.log_event(
+                                    request_id,
+                                    "tool_use",
+                                    {"name": active_tool_call["name"], "input": active_tool_call.get("input", {})}
+                                )
 
                             # Handle usage/tokens
                             if data.get("type") == "message_stop":
                                 usage = data.get("message", {}).get("usage", {})
                                 if usage.get("output_tokens"):
-                                    mission_manager.log_tokens(usage["output_tokens"], model=resolved_model, request_id=request_id)
+                                    mission_manager.log_tokens(
+                                        usage["output_tokens"],
+                                        model=resolved_model,
+                                        request_id=request_id,
+                                    )
+                                    if "router_instance" in locals():
+                                        router_instance.track_usage(resolved_model, usage["output_tokens"])
+                            
+                            # NEURAL VERIFICATION: Thinking Signature
+                            if settings.enable_thinking and (data.get("type") == "content_block_delta" or data.get("type") == "content_block_start"):
+                                content = ""
+                                if data.get("delta", {}).get("text"):
+                                    content = data["delta"]["text"]
+                                elif data.get("content_block", {}).get("text"):
+                                    content = data["content_block"]["text"]
+                                
+                                if content:
+                                    mission_manager.verify_thinking(request_id, content)
                         except Exception:
                             pass
                     yield chunk
@@ -655,6 +776,9 @@ async def create_message(
                 }
             )
         )
+        if "request_id" in locals():
+            mission_manager.log_event(request_id, "error", {"message": str(e)})
+            mission_manager.end_session(request_id, success=False)
         raise
     except Exception as e:
         logger.error(f"Error: {e!s}\n{traceback.format_exc()}")
@@ -725,6 +849,9 @@ async def root(
             "sonnet": settings.model_sonnet,
             "haiku": settings.model_haiku,
         },
+        "total_tokens": mission_manager.total_tokens,
+        "total_cost": round(mission_manager.total_cost, 4),
+        "tool_count": mission_manager.tool_count,
         "settings": {
             "hyper_analysis": settings.enable_hyper_analysis,
             "thinking": settings.enable_thinking,
@@ -771,6 +898,23 @@ async def update_config(
     }
 
 
+@router.get("/v1/config")
+async def get_config(
+    settings: Settings = Depends(get_settings),
+    _auth=Depends(require_api_key),
+):
+    """Get current dynamic settings."""
+    return {
+        "hyper_analysis": settings.enable_hyper_analysis,
+        "thinking": settings.enable_thinking,
+        "adversarial": settings.enable_adversarial_mode,
+        "raw_mode": settings.enable_raw_mode,
+        "planning": settings.enable_planning_mode,
+        "provider": settings.provider_type,
+        "model": settings.model,
+    }
+
+
 @router.api_route("/", methods=["HEAD", "OPTIONS"])
 async def probe_root(_auth=Depends(require_api_key)):
     """Respond to compatibility probes for the root endpoint."""
@@ -778,6 +922,7 @@ async def probe_root(_auth=Depends(require_api_key)):
 
 
 @router.get("/health")
+@router.get("/v1/health")
 async def health():
     """Health check endpoint."""
     return {"status": "healthy"}
@@ -904,60 +1049,46 @@ async def archive_agent(agent_id: str, _auth=Depends(require_api_key)):
     return agent
 
 
+@router.get("/v1/skills/catalog")
+async def get_skills_catalog(category: str | None = None, _auth=Depends(require_api_key)):
+    from .skills.catalog import catalog
+    if category:
+        return {"skills": catalog.get_skills_by_category(category)}
+    return {"skills": catalog.get_all_skills(), "bundles": catalog.bundles}
+
+@router.get("/v1/skills/search")
+async def search_skills(query: str, _auth=Depends(require_api_key)):
+    from .skills.catalog import catalog
+    return {"skills": catalog.search_skills(query)}
+
+
 @router.get("/v1/skills", response_model=SkillListResponse)
 async def list_skills(
     settings: Settings = Depends(get_settings), _auth=Depends(require_api_key)
 ):
-    """List available skills from the configured skills directory."""
-    skills_path = Path(settings.skills_dir)
-    if not skills_path.exists():
-        logger.warning(f"Skills directory not found: {settings.skills_dir}")
-        return SkillListResponse(data=[])
-
+    """List available skills from the unified skill loader."""
     skills = []
-    # Use a set to track processed directories to avoid duplicates if any
-    processed = set()
-
-    # Limit to top-level directories for now to keep it fast
     try:
-        for item in skills_path.iterdir():
-            if item.is_dir() and item.name not in processed:
-                skill_id = item.name
-                skill_md = item / "SKILL.md"
-
-                name = skill_id
-                description = None
-                version = None
-
-                if skill_md.exists():
-                    try:
-                        content = skill_md.read_text(encoding="utf-8")
-                        if content.startswith("---"):
-                            # Simple YAML frontmatter parser
-                            parts = content.split("---", 2)
-                            if len(parts) >= 3:
-                                meta = yaml.safe_load(parts[1])
-                                if isinstance(meta, dict):
-                                    name = meta.get("name", name)
-                                    description = meta.get("description")
-                                    version = meta.get("version")
-                    except Exception as e:
-                        logger.debug(f"Error parsing {skill_md}: {e}")
-
+        from .models.skills import SkillInfo
+        for name, skill in skill_loader.skills.items():
+            try:
                 skills.append(
                     SkillInfo(
-                        id=skill_id,
-                        name=name,
-                        description=description,
-                        path=str(item),
-                        version=version,
+                        id=str(name),
+                        name=str(skill.name or name),
+                        description=str(skill.description or "No description"),
+                        path=str(skill.path or "unknown"),
+                        version=str(getattr(skill, "version", "1.0.0")),
+                        category=str(getattr(skill, "category", "Uncategorized")),
+                        tags=list(getattr(skill, "tags", [])),
                     )
                 )
-                processed.add(skill_id)
+            except Exception as se:
+                logger.warning(f"Skipping invalid skill {name}: {se}")
     except Exception as e:
-        logger.error(f"Error scanning skills: {e}")
+        logger.error(f"Error listing skills: {e}")
         raise HTTPException(
-            status_code=500, detail="Failed to scan skills directory"
+            status_code=500, detail=f"Failed to retrieve skills: {str(e)}"
         ) from None
 
     return SkillListResponse(data=skills)

@@ -1,12 +1,12 @@
 # Collaborative Intelligence Workflow (Antigravity + Claude Code)
 
-This workflow defines the "Architect & Executor" protocol for seamless collaboration between Antigravity (this session) and Claude Code (the CLI).
+This workflow defines the "Architect & Executor" protocol for seamless collaboration between Antigravity (the Architect) and Claude Code (the Executor).
 
 ## 🛡️ Role Definitions
 
 | AI System | Role | Primary Responsibility |
 | :--- | :--- | :--- |
-| **Antigravity** | **Architect** | Environment config, agent design, skill discovery, and mission planning. |
+| **Antigravity** | **Architect** | Environment config, agent design, mission planning, and batch delegation. |
 | **Claude Code** | **Executor** | Deep code implementation, terminal execution, and multi-file refactoring. |
 
 ---
@@ -14,38 +14,39 @@ This workflow defines the "Architect & Executor" protocol for seamless collabora
 ## 🛰️ Collaboration Protocol
 
 ### 1. The Mission Briefing
-Before launching Claude Code, Antigravity prepares the "Neural Context".
+The Architect prepares the "Neural Context" and selects an agent.
 
 // turbo
 ```powershell
-# Antigravity prepares the agent and outputs a mission summary
+# Check current status
+.\cf.ps1 -s
+```
+
+### 2. Delegation Phase (Manual or Automated)
+
+**Manual Handoff:**
+Launch Claude Code and paste the mission brief.
+// turbo
+```powershell
 .\cf.ps1 -Pick
 ```
 
-### 2. Context Handoff
-Antigravity will provide a **Mission Token**. Paste this into your Claude Code prompt:
-> "I am working with Antigravity Architect. Current goal: [Architecture Plan]. Please implement the changes following the [Design Tokens]."
-
-### 3. Execution Phase
-Run Claude Code using the mission-specific environment:
-
+**Automated Delegation (Batch):**
+The Architect fires a headless command for specific implementation.
 // turbo
 ```powershell
-# Launch with the Architect's environment
-.\cf.ps1 "Implement Phase 1 of the architecture plan"
+.\cf.ps1 -Batch -a agent_id "Instruction"
 ```
 
-### 4. Real-Time Oversight (Mission Control)
-While Claude Code is executing, open the Antigravity Dashboard:
-- **Tab**: `Mission Control`
+### 3. Real-Time Oversight (Mission Control)
+While Claude Code is executing, monitor via `cf -s` or the Super FCC Dashboard:
 - **Visibility**: Watch the **Neural Change Log** as files are being modified in real-time.
-- **Management**: If the AI goes off-track, use the **ABORT ALL MISSIONS** button to immediately stop the orchestration.
+- **Management**: If the AI goes off-track, use `.\cf.ps1 -r` to immediately stop all orchestration.
 
-### 5. Validation Loop
+### 4. Validation Loop
 Once Claude Code finishes:
-1.  Come back to Antigravity.
-2.  Provide the `logs/` or `diffs` generated.
-3.  Antigravity will perform a **Security & Architecture Review**.
+1.  Verify changes via `cf "run tests"`.
+2.  Antigravity performs a **Security & Architecture Review**.
 
 ---
 
@@ -64,6 +65,6 @@ You can launch multiple Claude Code sessions with different **Managed Agents** s
 ---
 
 ## 📝 Rules for Both AIs
-1.  **Antigravity** must never perform deep multi-file edits while Claude Code is active to avoid merge conflicts.
-2.  **Claude Code** must respect the `config/settings.py` patterns established by Antigravity.
+1.  **Antigravity** must never perform deep multi-file edits while Claude Code is active.
+2.  **Claude Code** must respect the `config/settings.py` patterns.
 3.  **Antigravity** is the source of truth for `agents_db.json`.

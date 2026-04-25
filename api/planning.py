@@ -12,7 +12,7 @@ async def run_omx_planning(
     prompt: str, model: str, settings: Settings, nim_client: Any = None
 ) -> tuple[str, int]:
     """Generate a structured architectural plan (OmX) for a complex task.
-    
+
     Returns (planning_text, tokens).
     """
     if not settings.enable_planning_mode:
@@ -21,8 +21,10 @@ async def run_omx_planning(
     try:
         if nim_client is None:
             # Fallback for internal use if client isn't passed
-            from providers.openai_compat import AsyncOpenAI
             import httpx
+
+            from providers.openai_compat import AsyncOpenAI
+
             nim_client = AsyncOpenAI(
                 api_key=settings.nvidia_nim_api_key,
                 base_url="https://integrate.api.nvidia.com/v1",
@@ -34,7 +36,7 @@ async def run_omx_planning(
 
         logger.info("OmX_PLANNING: Generating strategic plan...")
         start_time = time.time()
-        
+
         response = await nim_client.chat.completions.create(
             model=planning_model,
             messages=[
@@ -61,19 +63,21 @@ async def run_omx_planning(
         )
 
         plan = response.choices[0].message.content
-        tokens = response.usage.total_tokens if hasattr(response, "usage") else 300
+        usage = getattr(response, "usage", None)
+        tokens = getattr(usage, "total_tokens", 300) if usage else 300
         duration = time.time() - start_time
 
         logger.info(
-            "OmX_PLANNING: Plan generated successfully in {:.2f}s. ({} tokens)", 
-            duration, tokens
+            "OmX_PLANNING: Plan generated successfully in {:.2f}s. ({} tokens)",
+            duration,
+            tokens,
         )
-        
+
         formatted_plan = (
             f"\n\n### <STRATEGIC_PLAN_OmX>\n{plan}\n### </STRATEGIC_PLAN_OmX>"
         )
         return formatted_plan, tokens
-        
+
     except Exception as e:
         logger.warning(f"OmX_PLANNING_FAILED: {e}")
         return "", 0

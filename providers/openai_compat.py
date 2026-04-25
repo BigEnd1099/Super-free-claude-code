@@ -14,6 +14,7 @@ from providers.base import BaseProvider, ProviderConfig
 from providers.common import (
     ContentType,
     HeuristicToolParser,
+    PreambleStripper,
     SSEBuilder,
     ThinkTagParser,
     append_request_id,
@@ -154,11 +155,13 @@ class OpenAICompatibleProvider(BaseProvider):
         request_id: str | None = None,
     ) -> AsyncIterator[str]:
         """Stream response in Anthropic SSE format."""
-        with logger.contextualize(request_id=request_id):
-            async for event in self._stream_response_impl(
-                request, input_tokens, request_id
-            ):
-                yield event
+        #with logger.contextualize(request_id=request_id):
+        # We avoid using logger.contextualize() here because it can cause ContextVar errors 
+        # when an AsyncIterator is consumed across different AnyIO tasks (common in FastAPI).
+        async for event in self._stream_response_impl(
+            request, input_tokens, request_id
+        ):
+            yield event
 
     async def _stream_response_impl(
         self,
@@ -199,13 +202,15 @@ class OpenAICompatibleProvider(BaseProvider):
                 try:
                     stream, body = await self._create_stream(body)
                 except Exception as e:
-                    mapped_e = map_error(e, read_timeout_s=self.config.http_read_timeout)
+                    mapped_e = map_error(
+                        e, read_timeout_s=self.config.http_read_timeout
+                    )
                     # For fatal errors that should return a status code, raise immediately
                     if getattr(mapped_e, "status_code", None) in [401, 403, 429]:
                         raise mapped_e from e
                     # For other errors (like timeouts), start the stream and yield the error
                     yield sse.message_start()
-                    raise # This will be caught by the outer except block below
+                    raise  # This will be caught by the outer except block below
 
                 yield sse.message_start()
 
@@ -257,7 +262,7 @@ class OpenAICompatibleProvider(BaseProvider):
                                 if filtered_text:
                                     for event in sse.ensure_text_block():
                                         yield event
-                                    
+
                                     # STM: Strip preambles from text deltas
                                     stripped_text = stripper.feed(filtered_text)
                                     if stripped_text:
@@ -340,7 +345,7 @@ class OpenAICompatibleProvider(BaseProvider):
                 for event in sse.ensure_text_block():
                     yield event
                 yield sse.emit_text_delta(remaining.content)
-        
+
         # Flush STM stripper
         flushed_text = stripper.flush()
         if flushed_text:

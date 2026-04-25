@@ -189,7 +189,9 @@ def update_provider_configs(settings: Settings) -> None:
             provider._config = new_config
             logger.info("Provider config updated: {}", provider_type)
         except Exception as e:
-            logger.warning("Failed to update config for provider {}: {}", provider_type, e)
+            logger.warning(
+                "Failed to update config for provider {}: {}", provider_type, e
+            )
 
 
 def require_api_key(
@@ -215,10 +217,14 @@ def require_api_key(
             "/v1/health",
             "/v1/skills",
             "/v1/mission/status",
+            "/v1/auth/status",
+            "/v1/graph/data",
+            "/v1/graph/scan",
             "/ws/logs",
         )
         or path.startswith("/agents")
         or path.startswith("/v1/agents")
+        or path.startswith("/v1/graph")
     )
     if is_local and is_safe_method and is_safe_path:
         return

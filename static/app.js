@@ -1,8 +1,317 @@
 document.addEventListener('DOMContentLoaded', () => {
+    /**
+     * Manages the Neural Map network graph using vis-network.
+     * Handles fetching, rendering, optimization, and lifecycle management.
+     */
+    class NeuralMapManager {
+        #network = null;
+        #nodes = null;
+        #edges = null;
+        #zoomTimeout = null;
+        #visibleLabelIds = new Set();
+        #containerId;
+        #pathId;
+
+        /**
+         * Immutable styles for different node groups - Preserving current visuals.
+         */
+        static GROUP_STYLES = Object.freeze({
+            directory: { color: { background: '#0f172a', border: '#94a3b8' }, shape: 'box', font: { size: 16, bold: true } },
+            module: { color: { background: '#1e293b', border: '#3b82f6' }, shape: 'diamond', size: 25 },
+            class: { color: { background: '#334155', border: '#a855f7' }, shape: 'dot', size: 20 },
+            function: { color: { background: '#0f172a', border: '#10b981' }, shape: 'dot', size: 15 },
+            import: { color: { background: '#1e293b', border: '#f59e0b' }, shape: 'triangle', size: 12 },
+            rationale: { color: { background: '#450a0a', border: '#ef4444' }, shape: 'star', size: 18 },
+            file: { color: { background: '#0f172a', border: '#64748b' }, shape: 'dot', size: 10 }
+        });
+
+        constructor({ containerId = 'graph-container', pathId = 'active-project-path' } = {}) {
+            this.#containerId = containerId;
+            this.#pathId = pathId;
+        }
+
+        #escapeHtml(str) {
+            if (typeof str !== 'string') return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        #showLoading() {
+            const container = document.getElementById(this.#containerId);
+            if (container) {
+                container.innerHTML = `
+                    <div class="loading-spinner">
+                        <div class="spinner"></div>
+                        <span>Mapping Neural Network... This may take a few seconds.</span>
+                    </div>
+                `;
+            }
+        }
+
+        #showError(errorMsg) {
+            const container = document.getElementById(this.#containerId);
+            if (container) {
+                container.innerHTML = `
+                    <div class="subtitle" style="color: var(--color-danger); padding: 2rem; text-align: center;">
+                        <div style="font-size: 2rem; margin-bottom: 1rem;">⚠️</div>
+                        <strong>Neural Mapping Error:</strong><br>
+                        <span style="font-family: monospace; font-size: 0.9rem;">${this.#escapeHtml(errorMsg)}</span>
+                    </div>
+                `;
+            }
+        }
+
+        async fetchGraph({ rescan = false } = {}) {
+            const isRefresh = !!this.#network;
+            
+            if (!isRefresh) {
+                this.#showLoading();
+            } else {
+                // For refreshes, show a subtle indicator on the button instead of replacing the whole graph
+                const btn = document.getElementById('btn-refresh-graph');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = 'SCANNING...';
+                }
+            }
+
+            const dataUrl = rescan ? '/v1/graph/scan' : '/v1/graph/data';
+            const projectUrl = '/v1/graph/project';
+
+            try {
+                const results = await Promise.allSettled([
+                    fetch(projectUrl).then(r => r.ok ? r.json() : Promise.reject(`Project fetch failed`)),
+                    fetch(dataUrl).then(r => r.ok ? r.json() : Promise.reject(`Graph data fetch failed`))
+                ]);
+
+                const [projectResult, graphResult] = results;
+
+                if (projectResult.status === 'fulfilled') {
+                    const pathEl = document.getElementById(this.#pathId);
+                    if (pathEl && projectResult.value.path) {
+                        pathEl.textContent = `[ROOT] ${projectResult.value.path}`;
+                    }
+                }
+
+                if (graphResult.status === 'fulfilled') {
+                    this.renderGraph(graphResult.value);
+                } else {
+                    throw new Error(graphResult.reason);
+                }
+
+                // Restore refresh button state
+                const btn = document.getElementById('btn-refresh-graph');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'SCAN CODEBASE';
+                }
+            } catch (err) {
+                this.#showError(err.message);
+                
+                // Ensure button is reset even on error
+                const btn = document.getElementById('btn-refresh-graph');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'SCAN CODEBASE';
+                }
+            }
+        }
+
+        renderGraph(rawData) {
+            const container = document.getElementById(this.#containerId);
+            if (!container) return;
+
+            const nodesArray = rawData.nodes.map(node => ({
+                ...node,
+                ...NeuralMapManager.GROUP_STYLES[node.group || 'module'],
+                font: {
+                    color: '#ffffff',
+                    face: 'JetBrains Mono',
+                    size: node.group === 'directory' ? 16 : 12
+                }
+            }));
+
+            if (this.#network) {
+                // High-performance diff: only update what changed
+                const currentIds = new Set(this.#nodes.getIds());
+                const newIds = new Set(nodesArray.map(n => n.id));
+                
+                const toDelete = [...currentIds].filter(id => !newIds.has(id));
+                const toUpdate = nodesArray.filter(n => currentIds.has(n.id));
+                const toAdd = nodesArray.filter(n => !currentIds.has(n.id));
+                
+                if (toDelete.length > 0) this.#nodes.remove(toDelete);
+                if (toUpdate.length > 0) this.#nodes.update(toUpdate);
+                if (toAdd.length > 0) this.#nodes.add(toAdd);
+                
+                // Same for edges
+                const currentEdgeIds = new Set(this.#edges.getIds());
+                const newEdgeIds = new Set(rawData.edges.map(e => e.id || `${e.from}-${e.to}`));
+                
+                // Note: edges usually don't have stable IDs unless provided, 
+                // but we can clear them if there's a major change
+                if (toAdd.length > 0 || toDelete.length > 0) {
+                    this.#edges.clear();
+                    this.#edges.add(rawData.edges);
+                }
+                
+                this.#updateLabels();
+                return;
+            }
+
+            this.#nodes = new vis.DataSet(nodesArray);
+            this.#edges = new vis.DataSet(rawData.edges);
+
+            const isPerfMode = document.getElementById('graph-perf-mode')?.checked ?? true;
+            const options = {
+                nodes: { borderWidth: 2, shadow: true },
+                edges: {
+                    color: { color: 'rgba(255,255,255,0.15)', highlight: '#3b82f6' },
+                    arrows: { to: { enabled: true, scaleFactor: 0.4 } },
+                    smooth: { type: 'continuous' }
+                },
+                layout: { improvedLayout: false },
+                physics: {
+                    stabilization: { iterations: 100 },
+                    barnesHut: { gravitationalConstant: -25000, centralGravity: 0.05, springLength: 700 }
+                },
+                interaction: { 
+                    hover: true, 
+                    tooltipDelay: 200,
+                    hideEdgesOnDrag: isPerfMode,
+                    hideEdgesOnZoom: isPerfMode
+                }
+            };
+
+            this.#network = new vis.Network(container, { nodes: this.#nodes, edges: this.#edges }, options);
+
+            this.#network.on('zoom', () => {
+                if (this.#zoomTimeout) clearTimeout(this.#zoomTimeout);
+                this.#zoomTimeout = setTimeout(() => this.#updateLabels(), 250);
+            });
+
+            this.#network.on('dragEnd', () => {
+                if (this.#zoomTimeout) clearTimeout(this.#zoomTimeout);
+                this.#zoomTimeout = setTimeout(() => this.#updateLabels(), 150);
+            });
+
+            // Performance Mode Toggle
+            const perfToggle = document.getElementById('graph-perf-mode');
+            if (perfToggle) {
+                perfToggle.addEventListener('change', (e) => {
+                    const enabled = e.target.checked;
+                    if (this.#network && typeof this.#network.setOptions === 'function') {
+                        this.#network.setOptions({
+                            interaction: {
+                                hideEdgesOnDrag: enabled,
+                                hideEdgesOnZoom: enabled
+                            }
+                        });
+                    }
+                });
+            }
+
+            this.#network.on("stabilizationIterationsDone", () => {
+                this.#network.setOptions({ physics: false });
+                this.#updateLabels(); // Apply initial culling
+            });
+        }
+
+        #updateLabels() {
+            // Safety Check: Ensure network exists and has the required methods
+            if (!this.#network || typeof this.#network.getNodesInView !== 'function') {
+                return;
+            }
+            
+            let scale;
+            let visibleIds;
+            try {
+                scale = this.#network.getScale();
+                visibleIds = this.#network.getNodesInView();
+            } catch (e) {
+                // Network might not be ready yet
+                return;
+            }
+
+            if (!visibleIds) return;
+            
+            const updates = [];
+            const labelEnabledIds = new Set();
+            let labelsShown = 0;
+            const MAX_LABELS = 40;
+
+            // Performance: Direct iteration without expensive sorting or map/filter
+            visibleIds.forEach(id => {
+                const node = this.#nodes.get(id);
+                if (!node) return;
+
+                let targetFontSize = 0;
+                const level = node.level ?? 99;
+
+                // Tighter thresholds: Only show detail when significantly zoomed in
+                const showByScale = 
+                    (scale > 1.5) ||                // Everything
+                    (scale > 1.0 && level <= 3) ||  // Functions
+                    (scale > 0.7 && level <= 1) ||  // Files
+                    (scale > 0.3 && level === 0);   // Directories
+
+                if (showByScale && labelsShown < MAX_LABELS) {
+                    targetFontSize = scale > 1.0 ? 12 : 14;
+                    labelsShown++;
+                    labelEnabledIds.add(String(node.id));
+                }
+
+                if ((node.font?.size ?? 0) !== targetFontSize) {
+                    updates.push({ 
+                        id: node.id, 
+                        font: { ...(node.font || {}), size: targetFontSize },
+                        color: node.color,
+                        shape: node.shape,
+                        size: node.size,
+                        hidden: false
+                    });
+                    if (targetFontSize > 0) this.#visibleLabelIds.add(String(node.id));
+                }
+            });
+
+            // Hide labels that just left the view or were throttled
+            this.#visibleLabelIds.forEach(id => {
+                if (!labelEnabledIds.has(id)) {
+                    const node = this.#nodes.get(id);
+                    if (node && (node.font?.size ?? 0) !== 0) {
+                        updates.push({ 
+                            id: node.id, 
+                            font: { ...(node.font || {}), size: 0 },
+                            color: node.color,
+                            shape: node.shape,
+                            size: node.size,
+                            hidden: false
+                        });
+                    }
+                    this.#visibleLabelIds.delete(id);
+                }
+            });
+
+            if (updates.length > 0) {
+                this.#nodes.update(updates);
+            }
+        }
+
+        redraw() { this.#network?.redraw(); }
+        
+        destroy() {
+            if (this.#zoomTimeout) clearTimeout(this.#zoomTimeout);
+            if (this.#network) this.#network.destroy();
+            this.#nodes = this.#edges = this.#network = null;
+        }
+    }
+
     // Neural State
+    const neuralMap = new NeuralMapManager();
     let allSkills = [];
     let selectedSkills = [];
-    let totalTokens = 0; 
+    let totalTokens = 0;
     let totalCost = 0.00;
 
     // Navigation
@@ -14,16 +323,35 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const tabId = item.getAttribute('data-tab');
 
-            navItems.forEach(i => i.classList.remove('active'));
-            tabContents.forEach(t => t.classList.remove('active'));
-
+            // Switch active tab UI
+            navItems.forEach(t => t.classList.remove('active'));
             item.classList.add('active');
-            document.getElementById(tabId).classList.add('active');
 
-            if (tabId === 'agents') fetchAgents();
-            if (tabId === 'dashboard') fetchStats();
-            if (tabId === 'skills') fetchSkills();
-            if (tabId === 'mission') fetchMissionStatus();
+            const targetTab = document.getElementById(tabId);
+            if (!targetTab) {
+                console.error(`Navigation Error: Target tab #${tabId} not found in DOM.`);
+                return;
+            }
+
+            tabContents.forEach(t => t.classList.remove('active'));
+            targetTab.classList.add('active');
+
+            try {
+                if (tabId === 'agents') fetchAgents();
+                if (tabId === 'feed') fetchMissionStatus();
+                if (tabId === 'dashboard') fetchStats();
+                if (tabId === 'graph') {
+                    neuralMap.fetchGraph();
+                    setTimeout(() => neuralMap.redraw(), 100);
+                }
+                if (tabId === 'skills') fetchSkills();
+                if (tabId === 'mcp') fetchStats();
+                if (tabId === 'auth') fetchAuthStatus();
+                if (tabId === 'logs') fetchStats();
+                if (tabId === 'config') fetchStats();
+            } catch (err) {
+                console.error(`Tab Load Error (${tabId}):`, err);
+            }
         });
 
         // Keyboard navigation support
@@ -74,22 +402,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Add to list UI
             const list = document.getElementById('mcp-server-list');
-            if (list.querySelector('.empty-state')) list.innerHTML = '';
+            if (list.querySelector('.subtitle')) list.innerHTML = '';
 
             const item = document.createElement('div');
             item.className = 'mcp-item';
-            item.style = 'background: rgba(255,255,255,0.03); padding: 0.75rem; border-radius: 6px; margin-bottom: 0.5rem; border: 1px solid rgba(255,255,255,0.05);';
             item.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <strong>${name}</strong>
-                    <span class="status-badge status-active" style="padding: 2px 6px; font-size: 0.7rem;">READY</span>
+                    <strong style="color: var(--color-primary);">${escapeHtml(name)}</strong>
+                    <span class="status-badge status-active">READY</span>
                 </div>
-                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">${type.toUpperCase()}: ${command}</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; word-break: break-all;">
+                    ${escapeHtml(type.toUpperCase())}: ${escapeHtml(command)}
+                </div>
+                <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                    <button class="btn btn-secondary btn-sm" style="flex: 1;">CONFIG</button>
+                    <button class="btn btn-secondary btn-sm" style="flex: 1; border-color: var(--color-danger); color: var(--color-danger);">REMOVE</button>
+                </div>
             `;
             list.prepend(item);
 
             modalMcp.classList.remove('active');
-            // Reset form
             document.getElementById('mcp-name').value = '';
             document.getElementById('mcp-command').value = '';
         };
@@ -118,8 +450,25 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('/');
             const data = await response.json();
-            document.getElementById('stat-provider').textContent = data.provider || 'Unknown';
-            document.getElementById('stat-model').textContent = data.model || 'Unknown';
+
+            // Populate stats safely
+            const setStat = (id, val) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = val;
+            };
+
+            setStat('stat-provider', data.provider || 'Unknown');
+            setStat('stat-model', data.model || 'Unknown');
+            setStat('stat-agents', data.agent_count || 0);
+            setStat('stat-optimized', data.optimized_count || 12);
+
+            // Sync Persistent Stats
+            if (data.total_tokens !== undefined) {
+                totalTokens = data.total_tokens;
+                totalCost = data.total_cost;
+                setStat('stat-tokens', formatNumber(totalTokens));
+                setStat('stat-cost', `$${totalCost.toFixed(2)}`);
+            }
 
             // Populate mapping inputs if they are empty
             if (!document.getElementById('map-opus').value && data.mapping) {
@@ -142,9 +491,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (el) el.checked = !!data.settings[key];
                 }
             }
-
-            // Simulate some stats if not provided
-            document.getElementById('stat-optimized').textContent = data.optimized_count || Math.floor(Math.random() * 10) + 5;
 
         } catch (err) {
             console.error('Failed to fetch stats:', err);
@@ -353,6 +699,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (response.ok) {
                 modal.classList.remove('active');
                 fetchAgents();
+                neuralMap.fetchGraph(); // Invalidate and refresh graph on new agent
                 // Clear fields
                 document.getElementById('agent-name').value = '';
                 document.getElementById('agent-system').value = '';
@@ -380,8 +727,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Initial load
-    fetchStats();
-    fetchAgents();
+    (async () => {
+        console.log("Nexus UI: Initializing modules...");
+        try { await fetchStats(); } catch (e) { console.error("Stats init failed", e); }
+        try { await fetchAgents(); } catch (e) { console.error("Agents init failed", e); }
+    })();
 
     // Auto-refresh stats
     setInterval(fetchStats, 10000);
@@ -391,7 +741,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('/v1/health/rate-limit');
             const data = await response.json();
-            
+
             // Update Rate Limit Bar (Real Data)
             const rateBar = document.getElementById('rate-bar');
             if (rateBar) {
@@ -400,7 +750,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Change color if approaching limit
                 rateBar.style.backgroundColor = percent > 80 ? 'var(--color-danger)' : 'var(--color-primary)';
             }
-            
+
             // Update Latency Simulation (linked to activity)
             const latencyBar = document.querySelector('.meter:first-child .bar');
             if (latencyBar) {
@@ -411,12 +761,12 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Health monitor failed:', err);
         }
     }
-    setInterval(updateHealthMeters, 2000);
+    setInterval(updateHealthMeters, 5000);
 
     // Fetch Skills
     async function fetchSkills() {
         const container = document.getElementById('skills-container');
-        if (allSkills.length > 0) {
+        if (allSkills && allSkills.length > 0) {
             renderSkills(allSkills);
             return;
         }
@@ -424,7 +774,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('/v1/skills');
             const data = await response.json();
-            allSkills = data.data;
+            allSkills = data.data || [];
             renderSkills(allSkills);
         } catch (err) {
             container.innerHTML = `<div class="subtitle" style="color: var(--color-danger)">Error scanning neural library: ${escapeHtml(err.message)}</div>`;
@@ -433,6 +783,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderSkills(skills) {
         const container = document.getElementById('skills-container');
+        const countEl = document.getElementById('skill-count');
+        if (countEl) countEl.textContent = allSkills.length;
+
         if (skills.length === 0) {
             container.innerHTML = '<div class="subtitle">No neural skills discovered.</div>';
             return;
@@ -440,10 +793,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         container.innerHTML = skills.map(skill => {
             const isActive = selectedSkills.includes(skill.id);
+            const category = skill.category || 'Uncategorized';
+            const tags = (skill.tags || []).map(t => `<span class="skill-mini-tag">${escapeHtml(t)}</span>`).join('');
+
             return `
                 <div class="skill-card ${isActive ? 'active' : ''}" data-id="${escapeHtml(skill.id)}">
-                    <h3>${escapeHtml(skill.name)}</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                        <h3>${escapeHtml(skill.name)}</h3>
+                        <span class="skill-cat-badge">${escapeHtml(category)}</span>
+                    </div>
                     <p>${escapeHtml(skill.description || 'Neural expansion module for specialized tasks.')}</p>
+                    <div class="skill-tags-row">${tags}</div>
                     <div class="skill-id">${escapeHtml(skill.id)}</div>
                 </div>
             `;
@@ -504,25 +864,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update Session Info
         const sessionInfo = document.getElementById('active-session-info');
-        if (data.active_count > 0 && data.active_sessions) {
-            const sessions = Object.values(data.active_sessions);
-            const firstSession = sessions[0] || {};
-            sessionInfo.innerHTML = `
-                <div class="status-badge status-active">ACTIVE MISSION</div>
-                <p style="font-size: 0.9rem; color: var(--text-primary); margin-top: 0.5rem;">
-                    ${data.active_count} session(s) active
-                </p>
-                <p style="font-size: 0.75rem; color: var(--text-muted);">
-                    Model: ${firstSession.model || 'Unknown'}
-                </p>
-            `;
-        } else {
-            sessionInfo.innerHTML = `
-                <div class="status-badge status-idle">IDLE</div>
-                <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 0.5rem;">
-                    Waiting for mission launch...
-                </p>
-            `;
+        if (sessionInfo) {
+            if (data.active_count > 0 && data.active_sessions) {
+                const sessions = Object.values(data.active_sessions);
+                const firstSession = sessions[0] || {};
+                sessionInfo.innerHTML = `
+                    <div class="status-badge status-active">ACTIVE MISSION</div>
+                    <p style="font-size: 0.9rem; color: var(--text-primary); margin-top: 0.5rem;">
+                        ${data.active_count} session(s) active
+                    </p>
+                    <p style="font-size: 0.75rem; color: var(--text-muted);">
+                        Model: ${firstSession.model || 'Unknown'}
+                    </p>
+                `;
+            } else {
+                sessionInfo.innerHTML = `
+                    <div class="status-badge status-idle">IDLE</div>
+                    <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                        Waiting for mission launch...
+                    </p>
+                `;
+            }
         }
 
         // Update Tool Count
@@ -531,25 +893,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update Change Log
         const changeLog = document.getElementById('change-log');
-        if (!data.recent_changes || data.recent_changes.length === 0) {
-            changeLog.innerHTML = '<div class="empty-state">No changes detected yet.</div>';
-        } else {
-            changeLog.innerHTML = [...data.recent_changes].reverse().map(change => `
-                <div class="change-item">
-                    <div class="change-file" title="${change.file}">${change.file.split('\\').pop().split('/').pop()}</div>
-                    <div class="change-type type-${change.type}">${(change.type || 'edit').toUpperCase()}</div>
-                </div>
-            `).join('');
+        if (changeLog) {
+            if (!data.recent_changes || data.recent_changes.length === 0) {
+                changeLog.innerHTML = '<div class="empty-state">No changes detected yet.</div>';
+            } else {
+                changeLog.innerHTML = [...data.recent_changes].reverse().map(change => `
+                    <div class="change-item">
+                        <div class="change-file" title="${change.file}">${change.file.split('\\').pop().split('/').pop()}</div>
+                        <div class="change-type ${change.type}">${(change.type || 'edit').toUpperCase()}</div>
+                    </div>
+                `).join('');
+
+                // Refresh graph if changes detected
+                if (data.recent_changes.length > 0) {
+                    neuralMap.fetchGraph();
+                }
+            }
         }
 
         // Update Global Stats (Real Data)
         totalTokens = data.total_tokens || 0;
         totalCost = data.total_cost || 0;
-        
-        const tokensEl = document.getElementById('analytics-tokens');
-        const costEl = document.getElementById('analytics-cost');
+
+        const tokensEl = document.getElementById('stat-tokens');
+        const costEl = document.getElementById('stat-cost');
         if (tokensEl) tokensEl.textContent = formatNumber(totalTokens);
         if (costEl) costEl.textContent = `$${totalCost.toFixed(2)}`;
+
+        // Sync system logs view if elements exist there too
+        const analyticsTokens = document.getElementById('analytics-tokens');
+        const analyticsCost = document.getElementById('analytics-cost');
+        if (analyticsTokens) analyticsTokens.textContent = formatNumber(totalTokens);
+        if (analyticsCost) analyticsCost.textContent = `$${totalCost.toFixed(2)}`;
     }
 
     // Abort All
@@ -572,18 +947,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 2000);
 
     // WebSocket for Live Intelligence Feed & System Logs
+    let logSocket = null;
     function connectLogs() {
+        if (logSocket) {
+            logSocket.close();
+            logSocket = null;
+        }
+
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/ws/logs`;
-        const socket = new WebSocket(wsUrl);
+        logSocket = new WebSocket(wsUrl);
 
-        socket.onmessage = (event) => {
+        logSocket.onopen = () => console.log('Telemetry stream connected.');
+
+        logSocket.onmessage = (event) => {
             const data = JSON.parse(event.data);
 
             if (data.type === 'tool_use') {
                 const status = data.status === 'INTERCEPTED_FAILURE' ? ' [HEALING...]' : '';
                 appendTerminalLine(`EXECUTOR: Calling tool '${data.tool}'${status}`, data.status === 'INTERCEPTED_FAILURE' ? 'system' : 'tool');
-                
+                updateWorkflowLoop('execution');
+
                 const toolCountEl = document.getElementById('feed-tool-count');
                 if (toolCountEl) {
                     const current = parseInt(toolCountEl.textContent) || 0;
@@ -591,8 +975,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } else if (data.type === 'orchestration') {
                 appendTerminalLine(`ARCHITECT: ${data.action} - [${data.agent}]`, 'system');
+                updateWorkflowLoop('planning');
             } else if (data.type === 'tool_result') {
                 appendTerminalLine(`ARCHITECT: Tool Result Received (ID: ${data.tool_use_id.slice(-6)})`, 'system');
+                updateWorkflowLoop('validation');
             } else if (data.type === 'traffic') {
                 // Update System Logs
                 appendLogLine(`[${data.method}] ${data.path} - ${data.model} (${data.tokens} tokens)`, 'info');
@@ -602,8 +988,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        socket.onclose = () => {
-            setTimeout(connectLogs, 5000); // Reconnect
+        logSocket.onclose = () => {
+            console.warn('Telemetry stream lost. Reconnecting in 5s...');
+            setTimeout(connectLogs, 5000);
+        };
+
+        logSocket.onerror = (err) => {
+            console.error('Telemetry stream error:', err);
+            logSocket.close();
         };
     }
 
@@ -613,11 +1005,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const sessionCost = (tokens / 1000000) * 15;
         totalCost += sessionCost;
 
-        const tokensEl = document.getElementById('analytics-tokens');
-        const costEl = document.getElementById('analytics-cost');
-
+        const tokensEl = document.getElementById('stat-tokens');
+        const costEl = document.getElementById('stat-cost');
         if (tokensEl) tokensEl.textContent = formatNumber(totalTokens);
         if (costEl) costEl.textContent = `$${totalCost.toFixed(2)}`;
+
+        // Sync legacy IDs too
+        const analyticsTokens = document.getElementById('analytics-tokens');
+        const analyticsCost = document.getElementById('analytics-cost');
+        if (analyticsTokens) analyticsTokens.textContent = formatNumber(totalTokens);
+        if (analyticsCost) analyticsCost.textContent = `$${totalCost.toFixed(2)}`;
     }
 
     function formatNumber(num) {
@@ -659,6 +1056,103 @@ document.addEventListener('DOMContentLoaded', () => {
             feed.removeChild(feed.firstChild);
         }
     }
+
+    function updateWorkflowLoop(step) {
+        const nodes = {
+            'planning': document.getElementById('node-planning'),
+            'execution': document.getElementById('node-execution'),
+            'validation': document.getElementById('node-validation')
+        };
+        const statusText = document.getElementById('workflow-status-text');
+
+        // Reset all
+        Object.values(nodes).forEach(n => n?.classList.remove('active'));
+
+        if (nodes[step]) {
+            nodes[step].classList.add('active');
+            if (statusText) {
+                if (step === 'planning') statusText.textContent = 'ARCHITECT: Synthesizing implementation strategy...';
+                if (step === 'execution') statusText.textContent = 'EXECUTOR: Operationalizing code changes...';
+                if (step === 'validation') statusText.textContent = 'FORENSICS: Verifying system integrity...';
+                if (step === 'idle') statusText.textContent = 'SYSTEM: All subsystems operational. Ready for mission.';
+            }
+        } else if (step === 'idle') {
+            if (statusText) statusText.textContent = 'SYSTEM: Ready. Awaiting instructions...';
+        }
+    }
+
+    // Handle idle state
+    let loopCycle = 0;
+    setInterval(() => {
+        const activeCount = parseInt(document.getElementById('stat-agents').textContent) || 0;
+        if (activeCount === 0) {
+            updateWorkflowLoop('idle');
+        }
+    }, 5000);
+
+    document.getElementById('btn-refresh-graph').onclick = () => neuralMap.fetchGraph({ rescan: true });
+
+    // Identity Lab: Auth Status
+    async function fetchAuthStatus() {
+        const statsContainer = document.getElementById('auth-stats-container');
+        const listContainer = document.getElementById('auth-list');
+
+        try {
+            const response = await fetch('/v1/auth/status');
+            const data = await response.json();
+            if (!data || !data.accounts) {
+                statsContainer.innerHTML = '<div class="subtitle">No accounts configured.</div>';
+                listContainer.innerHTML = '<div class="empty-state">No sessions active.</div>';
+                return;
+            }
+
+            // Render Stats
+            statsContainer.innerHTML = data.accounts.map(acc => `
+                <div class="stat-card">
+                    <div class="stat-label">${escapeHtml(acc.id)}</div>
+                    <div class="stat-value" style="color: ${acc.healthy ? 'var(--color-success)' : 'var(--color-danger)'}">
+                        ${acc.quota} Credits
+                    </div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.5rem;">
+                        Expires in ${Math.floor(acc.expires_in / 60)}m
+                    </div>
+                </div>
+            `).join('') || '<div class="subtitle">No active sessions detected.</div>';
+
+            // Render List
+            listContainer.innerHTML = data.accounts.map(acc => `
+                <div class="mapping-item" style="padding: 1rem; background: rgba(255,255,255,0.02); border-radius: 8px; margin-bottom: 0.5rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div class="pulse-dot" style="background-color: ${acc.active ? 'var(--color-success)' : 'var(--color-muted)'}"></div>
+                        <div>
+                            <div style="font-weight: 600;">${escapeHtml(acc.id)}</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">Status: ${acc.healthy ? 'HEALTHY' : 'DEGRADED'}</div>
+                        </div>
+                    </div>
+                    <button class="btn btn-secondary btn-sm">REFRESH</button>
+                </div>
+            `).join('');
+
+        } catch (err) {
+            console.error('Failed to fetch auth status:', err);
+        }
+    }
+
+    document.getElementById('btn-add-session').onclick = () => {
+        const accountId = prompt("Enter Account ID/Email:");
+        const token = prompt("Enter Access Token:");
+        if (accountId && token) {
+            fetch('/v1/auth/session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    account_id: accountId,
+                    access_token: token,
+                    expires_at: Date.now() / 1000 + 3600
+                })
+            }).then(() => fetchAuthStatus());
+        }
+    };
 
     connectLogs();
 });

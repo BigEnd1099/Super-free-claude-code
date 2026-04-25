@@ -18,7 +18,7 @@ Use an agent's ID to launch Claude Code with specific system instructions and sk
 
 // turbo
 ```powershell
-.\cf.ps1 -Agent "agent_6143b26978e7"
+.\cf.ps1 -Agent "agent_f3a2b1c0d9e8"
 ```
 
 ### 2. Select a Specific Provider Model
@@ -26,23 +26,27 @@ Bypass the default Opus/Sonnet/Haiku mapping and use a specific NVIDIA NIM or Op
 
 // turbo
 ```powershell
-.\cf.ps1 -Model "nvidia_nim/z-ai/glm4.7"
+.\cf.ps1 -Model "nvidia_nim/z-ai/glm-5.1"
 ```
 
-## 🧪 Testing Integration
+## ⚡ Automation & Batch Mode
 
-To verify the proxy connection with a one-off command:
+For fire-and-forget code generation in automated pipelines:
 
 // turbo
 ```powershell
-.\cf.ps1 "Hello, identify yourself" -p --bare
+.\cf.ps1 -Batch -a agent_f3a2b1c0d9e8 "Implement the feature X"
 ```
+
+## 📊 Management Utilities
+
+| Flag | Purpose |
+| :--- | :--- |
+| `-s`, `-Status` | View mission telemetry, uptime, and current engine config. |
+| `-l`, `-Logs` | Tail the proxy server logs in real-time. |
+| `-r`, `-Reset` | Immediately abort all active missions. |
+| `-cfg k:v` | Dynamically toggle settings like `planning:on` or `adversarial:off`. |
 
 ## 📊 Dashboard Access
 Once the proxy is running, you can monitor traffic and manage skills at:
 [http://localhost:8082/ui/](http://localhost:8082/ui/)
-
-## 📝 Troubleshooting
-- **Port Conflict**: If port 8082 is busy, update `PORT` in your `.env` file.
-- **Auth Error**: Ensure `ANTHROPIC_AUTH_TOKEN` matches in your `.env` and the Claude Code settings.
-- **Model Missing**: Check `nvidia_nim_models.json` to ensure your provider model is discovered.
