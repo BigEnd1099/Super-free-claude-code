@@ -1,14 +1,14 @@
 {
-  "total_tokens": 10803020,
-  "total_cost": 162.04529999999988,
+  "total_tokens": 11940180,
+  "total_cost": 179.1026999999998,
   "tool_count": 0,
   "model_stats": {
     "nvidia_nim/test-model": {
-      "tokens": 10803020,
-      "cost": 162.04529999999988,
-      "calls": 76
+      "tokens": 11940180,
+      "cost": 179.1026999999998,
+      "calls": 84
     }
   },
   "change_log": [],
-  "last_updated": "2026-04-25T21:13:05.157547"
+  "last_updated": "2026-04-25T21:22:18.713328"
 }
