@@ -1,5 +1,4 @@
 import os
-from collections.abc import Callable
 from pathlib import Path
 
 from fastapi import APIRouter, Depends
@@ -77,8 +76,7 @@ async def scan_codebase(settings: Settings = Depends(get_settings)):
     engine: GraphifyEngine = get_engine(settings)
     try:
         # Ensure we are scanning the latest root
-        scan_func: Callable = engine.scan
-        data = await anyio.to_thread.run_sync(scan_func)
+        data = await anyio.to_thread.run_sync(engine.scan)
         logger.info(
             f"GRAPHIFY: Scan completed for {engine.root_path} with {len(data['nodes'])} nodes."
         )
@@ -109,6 +107,5 @@ async def get_graph_report(settings: Settings = Depends(get_settings)):
         await scan_codebase(settings)
 
     generator = GraphReportGenerator(engine.get_networkx_graph(), engine.root_path)
-    generate_func: Callable = generator.generate
-    report_content = await anyio.to_thread.run_sync(generate_func)
+    report_content = await anyio.to_thread.run_sync(generator.generate)
     return {"report": report_content}
